@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>İlave Kontrol Sistemi</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Firebase (bulut veritabanı + dosya deposu) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --ink:#161A20; --ink-soft:#5A6470; --ink-faint:#8B95A1;
+  --canvas:#E7EAEE; --surface:#FFFFFF; --line:#D5DAE0; --line-soft:#E6E9ED;
+  --santiye:#BE7A1E; --santiye-bg:#FBF2E1;
+  --ofis:#2C6E8F;    --ofis-bg:#E6F0F5;
+  --imalat:#5A5B87;  --imalat-bg:#ECECF3;
+  --ok:#2E7D5B; --ok-bg:#E4F1EA;
+  --warn:#B8860B; --warn-bg:#F7EFD9;
+  --danger:#C0453B; --danger-bg:#F7E6E4;
+  --mono:ui-monospace,"JetBrains Mono","Cascadia Code","SF Mono",Menlo,Consolas,monospace;
+  --sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --shadow:0 1px 2px rgba(20,24,32,.06),0 8px 28px rgba(20,24,32,.09);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:var(--sans);background:var(--canvas);color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;cursor:pointer}
+input,textarea,select{font-family:inherit;font-size:14px}
+::selection{background:#2C6E8F33}
+
+.topbar{position:sticky;top:0;z-index:40;background:var(--ink);color:#EDEFF2;display:flex;align-items:center;gap:16px;padding:0 22px;height:58px}
+.brand{display:flex;align-items:center;gap:12px;font-weight:600}
+.brand .glyph{display:grid;place-items:center;width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,var(--santiye),var(--ofis) 55%,var(--imalat));font-family:var(--mono);font-weight:700;font-size:14px;color:#fff}
+.brand small{display:block;font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--ink-faint);text-transform:uppercase}
+.brand b{font-size:15px}
+.topbar .spacer{flex:1}
+.storage-chip{font-family:var(--mono);font-size:10.5px;color:#B9C2CC;background:#20262E;border:1px solid #2C333C;padding:5px 10px;border-radius:20px;display:flex;align-items:center;gap:6px}
+.storage-chip .dot{width:7px;height:7px;border-radius:50%;background:var(--warn)}
+
+.wrap{max-width:1180px;margin:0 auto;padding:24px 22px 90px}
+.page-head{display:flex;align-items:center;gap:15px;margin-bottom:22px}
+.ph-icon{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;color:#fff;flex-shrink:0;background:linear-gradient(135deg,var(--santiye),var(--ofis) 55%,var(--imalat))}
+.page-head h1{margin:0;font-size:19px}
+.page-head p{margin:3px 0 0;font-size:13px;color:var(--ink-soft)}
+.flowline{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:4px}
+.flowline .st{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft)}
+.flowline .st .d{width:8px;height:8px;border-radius:50%}
+.flowline .d.s{background:var(--santiye)}.flowline .d.o{background:var(--ofis)}.flowline .d.i{background:var(--imalat)}.flowline .d.t{background:var(--ok)}
+.flowline .arr{color:var(--ink-faint)}
+
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:15px 18px;position:relative;overflow:hidden}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--line)}
+.kpi.k-total::before{background:var(--ink)}
+.kpi.k-wo::before{background:var(--warn)}
+.kpi.k-wi::before{background:var(--imalat)}
+.kpi.k-ok::before{background:var(--ok)}
+.kpi .n{font-family:var(--mono);font-size:28px;font-weight:600;line-height:1}
+.kpi .l{font-size:11.5px;color:var(--ink-soft);margin-top:7px}
+
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.search{flex:1;min-width:200px;display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;height:40px}
+.search input{border:0;outline:0;flex:1;background:transparent;color:var(--ink)}
+.search svg{flex-shrink:0;color:var(--ink-faint)}
+.toolbar select{height:40px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:0 32px 0 12px;color:var(--ink);appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%238B95A1' stroke-width='2'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+.btn{height:40px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-weight:600;font-size:13px;padding:0 16px;display:inline-flex;align-items:center;gap:8px;transition:.15s}
+.btn:hover{border-color:var(--ink-faint)}
+.btn svg{flex-shrink:0}
+.btn-primary{background:var(--ink);border-color:var(--ink);color:#fff}
+.btn-santiye{background:var(--santiye);border-color:var(--santiye);color:#fff}
+.btn-ofis{background:var(--ofis);border-color:var(--ofis);color:#fff}
+.btn-imalat{background:var(--imalat);border-color:var(--imalat);color:#fff}
+.btn-primary:hover,.btn-santiye:hover,.btn-ofis:hover,.btn-imalat:hover{filter:brightness(1.08)}
+.btn-ghost{background:transparent;border-color:transparent}
+.btn-sm{height:32px;padding:0 12px;font-size:12.5px}
+
+.viewtabs{display:flex;gap:0;margin-bottom:14px;border-bottom:1px solid var(--line)}
+.viewtabs button{border:0;background:transparent;padding:10px 2px;margin-right:22px;font-size:13.5px;font-weight:600;color:var(--ink-faint);border-bottom:2px solid transparent;display:flex;align-items:center;gap:8px;position:relative;top:1px}
+.viewtabs button.active{color:var(--ink);border-bottom-color:var(--ink)}
+.viewtabs .cnt{font-family:var(--mono);font-size:11px;background:var(--canvas);color:var(--ink-soft);padding:1px 7px;border-radius:10px}
+.viewtabs button.active .cnt{background:var(--ink);color:#fff}
+.viewtabs button.done-tab.active{border-bottom-color:var(--ok);color:var(--ok)}
+.viewtabs button.done-tab.active .cnt{background:var(--ok)}
+
+.list-head{display:grid;grid-template-columns:58px 1.35fr 96px 1fr 218px 148px;gap:14px;padding:0 18px 8px;font-family:var(--mono);font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-faint)}
+.rows{display:flex;flex-direction:column;gap:8px}
+.row{display:grid;grid-template-columns:58px 1.35fr 96px 1fr 218px 148px;gap:14px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:13px 18px;cursor:pointer;transition:.12s;position:relative}
+.row:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
+.row.nx-ofis{border-left:4px solid var(--ofis)}
+.row.nx-imalat{border-left:4px solid var(--imalat)}
+.row.nx-santiye{border-left:4px solid var(--santiye)}
+.row.is-done{background:#FBFCFB}
+.row .idcell{font-family:var(--mono);font-size:12px;color:var(--ink-soft);font-weight:600}
+.row .who{font-weight:600}
+.row .who small{display:block;font-weight:500;font-size:11.5px;color:var(--ink-faint);margin-top:1px}
+.row .tarih{font-family:var(--mono);font-size:12.5px;color:var(--ink-soft)}
+.row .neden{color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .nx-tag{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;margin-top:5px}
+.row.nx-ofis .nx-tag{color:var(--ofis)} .row.nx-imalat .nx-tag{color:var(--imalat)} .row.nx-santiye .nx-tag{color:var(--santiye)}
+
+.stepper{display:flex;align-items:center}
+.stepper .snode{width:20px;height:20px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;font-family:var(--mono);font-size:11px;font-weight:700;border:1.5px solid var(--line);background:#fff;color:var(--ink-faint)}
+.stepper .snode.s1.done{background:var(--santiye);border-color:var(--santiye);color:#fff}
+.stepper .snode.s2.done{background:var(--ofis);border-color:var(--ofis);color:#fff}
+.stepper .snode.s3.done{background:var(--imalat);border-color:var(--imalat);color:#fff}
+.stepper .snode.s4.done{background:var(--ok);border-color:var(--ok);color:#fff}
+.stepper .sbar{width:11px;height:2px;background:var(--line)}
+.stepper .sbar.d-o{background:var(--ofis)} .stepper .sbar.d-i{background:var(--imalat)} .stepper .sbar.d-t{background:var(--ok)}
+
+/* Süreç açıklama şeridi */
+.legend{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:2px 0 14px;font-size:12px;color:var(--ink-soft)}
+.legend .lg{display:inline-flex;align-items:center;gap:6px}
+.legend .lg b{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:10px;color:#fff}
+.legend .lg b.n1{background:var(--santiye)} .legend .lg b.n2{background:var(--ofis)} .legend .lg b.n3{background:var(--imalat)} .legend .lg b.n4{background:var(--ok)}
+.legend .sep{color:var(--ink-faint)}
+
+/* Etiketli ilerleme çubuğu (net süreç) */
+.track{display:flex;align-items:flex-start}
+.tstep{flex:1;display:flex;flex-direction:column;align-items:center;position:relative}
+.tstep::before{content:"";position:absolute;top:9px;left:-50%;width:100%;height:2px;background:var(--line);z-index:0}
+.tstep:first-child::before{display:none}
+.tstep.done::before{background:var(--ok)}
+.tstep .tc{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:#fff;border:2px solid var(--line);color:var(--ink-faint);z-index:1;font-size:10px;font-weight:700;font-family:var(--mono)}
+.tstep.done .tc{background:var(--ok);border-color:var(--ok);color:#fff}
+.tstep.cur .tc{border-color:var(--ink);color:var(--ink)}
+.tstep .tl{font-size:9.5px;font-weight:600;color:var(--ink-faint);margin-top:5px;white-space:nowrap;letter-spacing:.2px}
+.tstep.done .tl{color:var(--ink-soft)}
+.tstep.cur .tl{color:var(--ink)}
+
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:5px 10px;border-radius:20px;white-space:nowrap}
+.badge .bd{width:6px;height:6px;border-radius:50%;background:currentColor}
+.b-wo{background:var(--warn-bg);color:#8a6508}
+.b-wi{background:var(--imalat-bg);color:#454680}
+.b-plan{background:var(--ofis-bg);color:#1f5673}
+.b-ok{background:var(--ok-bg);color:#1e6046}
+
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:14px;padding:52px 24px;text-align:center;color:var(--ink-soft)}
+.empty .big{width:54px;height:54px;margin:0 auto 15px;border-radius:14px;background:var(--canvas);display:grid;place-items:center;color:var(--ink-faint)}
+.empty h3{margin:0 0 6px;color:var(--ink);font-size:16px}
+.empty p{margin:0 0 20px;font-size:13px}
+
+.overlay{position:fixed;inset:0;background:rgba(22,26,32,.55);z-index:60;display:flex;align-items:flex-start;justify-content:center;padding:34px 18px;overflow-y:auto;backdrop-filter:blur(2px)}
+.overlay.top{z-index:70}
+.modal{background:var(--surface);border-radius:14px;width:100%;max-width:560px;box-shadow:var(--shadow);overflow:hidden;animation:pop .18s ease}
+.modal.wide{max-width:760px}
+@keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+.modal-head{display:flex;align-items:center;gap:14px;padding:18px 22px;border-bottom:1px solid var(--line-soft)}
+.modal-head h2{margin:0;font-size:16px;flex:1}
+.modal-head .sub{font-family:var(--mono);font-size:11px;color:var(--ink-faint)}
+.iconbtn{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;color:var(--ink-soft)}
+.iconbtn:hover{background:var(--canvas)}
+.modal-body{padding:22px}
+.modal-foot{display:flex;justify-content:flex-end;gap:10px;padding:16px 22px;border-top:1px solid var(--line-soft);background:#FAFBFC}
+
+.field{margin-bottom:16px}
+.field label{display:block;font-size:12px;font-weight:600;margin-bottom:7px}
+.field label .req{color:var(--danger)}
+.field input[type=text],.field input[type=date],.field textarea,.field select{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--surface);color:var(--ink);outline:0}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--ofis);box-shadow:0 0 0 3px #2C6E8F22}
+.field textarea{resize:vertical;min-height:74px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+.drop{border:1.5px dashed var(--line);border-radius:10px;padding:20px;text-align:center;color:var(--ink-soft);transition:.15s;cursor:pointer;background:var(--canvas)}
+.drop:hover,.drop.drag{border-color:var(--ofis);background:var(--ofis-bg);color:var(--ofis)}
+.drop svg{margin-bottom:8px}
+.drop .hint{font-size:12px;color:var(--ink-faint);margin-top:4px}
+.filepill{display:flex;align-items:center;gap:11px;background:var(--ofis-bg);border:1px solid #cfe0e9;border-radius:9px;padding:11px 13px}
+.filepill .xls{width:34px;height:34px;border-radius:7px;background:var(--ok);color:#fff;display:grid;place-items:center;font-family:var(--mono);font-size:10px;font-weight:700;flex-shrink:0}
+.filepill .meta{flex:1;min-width:0}
+.filepill .fn{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.filepill .fs{font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+.filepill .rm{border:0;background:transparent;color:var(--ink-faint);padding:4px}
+.filepill .rm:hover{color:var(--danger)}
+
+.detail-head{display:flex;align-items:center;gap:16px;padding:18px 24px;border-bottom:1px solid var(--line-soft)}
+.detail-head .no{font-family:var(--mono);font-weight:700;font-size:15px}
+.detail-head h2{margin:0;font-size:16px}
+.detail-head .meta{font-size:12px;color:var(--ink-soft);margin-top:2px}
+.detail-head .spacer{flex:1}
+.flow{padding:22px 24px}
+.stage{border:1px solid var(--line);border-radius:12px;padding:16px 18px;background:#fff;border-left-width:4px}
+.stage.s{border-left-color:var(--santiye)} .stage.o{border-left-color:var(--ofis)} .stage.i{border-left-color:var(--imalat)} .stage.t{border-left-color:var(--ok)}
+.stage-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.stage-num{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:12px;font-weight:700;color:#fff;flex-shrink:0}
+.stage.s .stage-num{background:var(--santiye)} .stage.o .stage-num{background:var(--ofis)} .stage.i .stage-num{background:var(--imalat)} .stage.t .stage-num{background:var(--ok)}
+.stage-head b{font-size:14px}
+.stage-head .st-status{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--ink-faint)}
+.flow-link{width:2px;height:16px;background:var(--line);margin:0 0 0 30px}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-bottom:12px}
+.info-grid .cell .k{font-size:11px;color:var(--ink-faint);font-weight:600}
+.info-grid .cell .v{font-size:13.5px;margin-top:1px}
+.reason-box{background:var(--canvas);border-radius:8px;padding:11px 13px;font-size:13.5px;line-height:1.55}
+
+.filecard{border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.filecard-row{display:flex;align-items:center;gap:11px;padding:11px 13px}
+.filecard .xls{width:34px;height:34px;border-radius:7px;background:var(--ok);color:#fff;display:grid;place-items:center;font-family:var(--mono);font-size:10px;font-weight:700;flex-shrink:0}
+.filecard .meta{flex:1;min-width:0}
+.filecard .fn{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.filecard .fs{font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+details.prev{border-top:1px solid var(--line-soft)}
+details.prev summary{list-style:none;cursor:pointer;padding:9px 13px;font-size:12px;font-weight:600;color:var(--ink-soft);display:flex;align-items:center;gap:7px;user-select:none}
+details.prev summary::-webkit-details-marker{display:none}
+details.prev summary::before{content:"▸";color:var(--ink-faint);transition:.15s}
+details.prev[open] summary::before{transform:rotate(90deg)}
+.tablewrap{border:1px solid var(--line);border-radius:9px;overflow:auto;max-height:300px;background:#fff}
+.tablewrap.big{max-height:70vh}
+table.xls{border-collapse:collapse;width:100%;font-size:12px;font-family:var(--mono)}
+table.xls th,table.xls td{border-bottom:1px solid var(--line-soft);border-right:1px solid var(--line-soft);padding:7px 10px;text-align:left;white-space:nowrap}
+table.xls thead th{position:sticky;top:0;background:var(--canvas);z-index:1;font-weight:700;color:var(--ink)}
+table.xls .rownum{background:#FAFBFC;color:var(--ink-faint);text-align:right;position:sticky;left:0}
+
+.stage-empty{color:var(--ink-faint);font-size:13px;padding:6px 0}
+.stage-act{border:1.5px dashed var(--ofis);border-radius:10px;padding:20px;text-align:center;background:var(--ofis-bg);color:var(--ofis)}
+.stage-act.imalat{border-color:var(--imalat);background:var(--imalat-bg);color:var(--imalat)}
+.stage-act.santiye{border-color:var(--santiye);background:var(--santiye-bg);color:var(--santiye)}
+.stage-act p{margin:0 0 14px;font-size:13px;color:var(--ink-soft)}
+.date-set{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.date-set .field{margin:0}
+.done-shown{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.done-shown .k{font-size:11px;color:var(--ink-faint);font-weight:600}
+.done-shown .big-date{font-family:var(--mono);font-size:20px;font-weight:600}
+
+.detail-foot{border-top:1px solid var(--line-soft);padding:18px 24px;background:#FAFBFC}
+.notes h4{margin:0 0 3px;font-size:13px}
+.notes .nh-sub{font-size:11.5px;color:var(--ink-faint);margin:0 0 12px}
+.note{display:flex;gap:10px;margin-bottom:9px}
+.note .w{width:9px;height:9px;border-radius:50%;margin-top:5px;flex-shrink:0;background:var(--ink-faint)}
+.note .b{flex:1;background:#fff;border:1px solid var(--line-soft);border-radius:8px;padding:9px 12px}
+.note .b .txt{font-size:13px}
+.note .b .m{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);margin-top:3px}
+.note-add{display:flex;gap:9px;margin-top:12px;flex-wrap:wrap}
+.note-add .n-name{width:150px;border:1px solid var(--line);border-radius:8px;padding:9px 12px;outline:0}
+.note-add .n-txt{flex:1;min-width:200px;border:1px solid var(--line);border-radius:8px;padding:9px 12px;outline:0}
+.note-add input:focus{border-color:var(--ofis)}
+
+.toast-wrap{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:90;display:flex;flex-direction:column;gap:8px;align-items:center}
+.toast{background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;box-shadow:var(--shadow);display:flex;align-items:center;gap:10px;animation:pop .2s}
+.toast.ok .i{color:#6ee7b7}.toast.err .i{color:#fca5a5}
+.hidden{display:none!important}
+
+@media(max-width:900px){
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .list-head{display:none}
+  .row{grid-template-columns:1fr auto;gap:8px 14px}
+  .row .idcell{order:1}.row .badge{order:2;justify-self:end}
+  .row .who{order:3;grid-column:1/-1}.row .neden{order:4;grid-column:1/-1}
+  .row .tarih{order:5}.row .track{order:6;grid-column:1/-1;margin-top:4px}
+  .info-grid{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><div class="glyph">İK</div><div><small>İmalat Takip</small><b>İlave Kontrol Sistemi</b></div></div>
+  <div class="spacer"></div>
+  <div class="storage-chip" id="storageChip"><span class="dot" id="storageDot"></span><span id="storageText">Firebase'e bağlanılıyor…</span></div>
+</div>
+
+<div class="wrap">
+  <div class="page-head">
+    <div class="ph-icon"><svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="3" width="14" height="18" rx="2"/><path d="M8 3V2h6v1M8 9h6M8 13h6M8 17h3"/></svg></div>
+    <div><h1>İlave Talepleri</h1>
+      <div class="flowline">
+        <span class="st"><span class="d s"></span>Şantiye talebi</span><span class="arr">→</span>
+        <span class="st"><span class="d o"></span>Ofis imalatı</span><span class="arr">→</span>
+        <span class="st"><span class="d i"></span>İmalat teslim tarihi</span><span class="arr">→</span>
+        <span class="st"><span class="d t"></span>Şantiye tamamlandı</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi k-total"><div class="n" id="kTotal">0</div><div class="l">Toplam ilave talebi</div></div>
+    <div class="kpi k-wo"><div class="n" id="kWo">0</div><div class="l">Ofis bekleyen</div></div>
+    <div class="kpi k-wi"><div class="n" id="kWi">0</div><div class="l">İmalat bekleyen</div></div>
+    <div class="kpi k-ok"><div class="n" id="kOk">0</div><div class="l">Tamamlanan</div></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="search">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="5"/><path d="M15 15l-4-4"/></svg>
+      <input id="searchInput" placeholder="Şantiye, talep eden, neden veya no ara…">
+    </div>
+    <select id="filterSantiye"><option value="">Tüm şantiyeler</option></select>
+    <select id="filterDurum">
+      <option value="">Tüm durumlar</option>
+      <option value="wait_ofis">Ofis bekleniyor</option>
+      <option value="wait_imalat">İmalat bekleniyor</option>
+      <option value="planned">Teslim planlandı</option>
+    </select>
+    <button class="btn btn-santiye" id="newBtn">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 3v10M3 8h10"/></svg>Yeni İlave Talebi
+    </button>
+  </div>
+
+  <div class="viewtabs" id="viewtabs">
+    <button data-view="aktif" class="active">Aktif İlaveler <span class="cnt" id="cntAktif">0</span></button>
+    <button data-view="tamamlanan" class="done-tab">Tamamlanan İlaveler <span class="cnt" id="cntDone">0</span></button>
+  </div>
+
+  <div class="legend">
+    <span style="font-weight:600;color:var(--ink-faint)">SÜREÇ:</span>
+    <span class="lg"><b class="n1">1</b>Şantiye talebi</span><span class="sep">›</span>
+    <span class="lg"><b class="n2">2</b>Ofis imalatı</span><span class="sep">›</span>
+    <span class="lg"><b class="n3">3</b>İmalat teslim tarihi</span><span class="sep">›</span>
+    <span class="lg"><b class="n4">4</b>Şantiye tamamlandı</span>
+  </div>
+
+  <div class="list-head"><div>Talep</div><div>Şantiye / İsteyen</div><div>Tarih</div><div>İlave Nedeni</div><div>Süreç</div><div>Durum</div></div>
+  <div class="rows" id="rows"></div>
+  <div id="emptyState"></div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+/* ============================================================
+   İLAVE KONTROL SİSTEMİ  —  tek akış, herkes kendi işini karttan yapar
+   Süreç: 1) Şantiye talep → 2) Ofis imalat → 3) İmalat teslim tarihi → 4) Şantiye tamamlandı
+   ============================================================ */
+
+/* -------- DEPOLAMA (Firebase geçişi SADECE burada) --------
+   Şu an localStorage. Firebase için DB.list/create/update/remove içini Firestore yap.
+   Excel'ler base64; Firebase'de Storage'a yükle, downloadURL sakla.
+   -------- AUTH (sonra) -------- Üyelik + admin onayı ERİŞİM için olacak:
+   users:{email,ad,approved:false} -> admin approved=true yapınca siteye girebilir.
+   Girişten sonra kullanıcının adı not/işlem kayıtlarına otomatik yazılabilir.
+   (Şu an rol ayrımı yok; her giriş yapan tüm aşamaları karttan yürütebilir.)          */
+/* ============================================================
+   FIREBASE AYARLARI
+   Aşağıdaki bilgileri KENDİ Firebase projenden alıp yapıştıracaksın.
+   (Firebase Console > Proje ayarları > "Web uygulaman" > SDK yapılandırması)
+   ============================================================ */
+const firebaseConfig = {
+  apiKey:            "AIzaSyA9Wq5ogWunVN-ED-VJgLdvyqvNvthGxSs",
+  authDomain:        "ilave-takip-deff6.firebaseapp.com",
+  projectId:         "ilave-takip-deff6",
+  storageBucket:     "ilave-takip-deff6.firebasestorage.app",
+  messagingSenderId: "829572317387",
+  appId:             "1:829572317387:web:7df75ebaa5de6e96eadb4e"
+};
+
+const FIREBASE_READY = firebaseConfig.apiKey && firebaseConfig.apiKey.indexOf("BURAYA")===-1;
+let db=null;
+if(FIREBASE_READY){
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+}
+
+/* ---------- DEPOLAMA KATMANI (Firebase Firestore + canlı senkron) ----------
+   Bir kayıt eklenince/değişince Firestore anlık olarak herkese yayar (onSnapshot).
+   Excel dosyaları Firebase Storage'a yüklenir; kayıtta sadece indirme linki + önizleme tutulur.  */
+const COL="ilaveTalepleri";
+function newId(){ return "ILV-"+String(Date.now()).slice(-6)+Math.floor(Math.random()*90+10); }
+const DB={
+  _c:[],
+  init(onChange){
+    if(!FIREBASE_READY){ setStorageStatus("warn","Firebase yapılandırılmadı"); onChange&&onChange(); return; }
+    db.collection(COL).orderBy("createdAt","desc").onSnapshot(
+      snap=>{ DB._c = snap.docs.map(d=>({id:d.id, ...d.data()})); setStorageStatus("ok","Firebase Bulut · Bağlı"); onChange&&onChange(); },
+      err=>{ setStorageStatus("err","Bağlantı hatası"); console.error("Firestore:",err); toast("Firebase bağlantı hatası: "+(err.code||err.message),"err"); }
+    );
+  },
+  list(){ return DB._c; },
+  get(id){ return DB._c.find(r=>r.id===id); },
+  async createWithId(id,rec){ rec.createdAt=Date.now(); await db.collection(COL).doc(id).set(rec); },
+  async update(id,patch){ const r=DB.get(id); if(r)Object.assign(r,patch); await db.collection(COL).doc(id).update(patch); },
+  async remove(id){ await db.collection(COL).doc(id).delete(); }
+};
+function setStorageStatus(kind,text){
+  const dot=$("#storageDot"),t=$("#storageText"); if(!dot)return;
+  dot.style.background = kind==="ok"?"var(--ok)":kind==="err"?"var(--danger)":"var(--warn)";
+  t.textContent=text;
+}
+
+let VIEW="aktif", newFile=null, lastNoteName="";
+try{lastNoteName=localStorage.getItem("ik.noteName")||"";}catch(e){}
+
+function statusInfo(r){
+  if(r.tamamlandiAt) return {key:"tamamlandi",cls:"b-ok",txt:"Tamamlandı"};
+  if(r.teslimTarihi) return {key:"planned",cls:"b-plan",txt:"Teslim: "+fmtShort(r.teslimTarihi)};
+  if(r.ofisExcel)    return {key:"wait_imalat",cls:"b-wi",txt:"İmalat Bekleniyor"};
+  return {key:"wait_ofis",cls:"b-wo",txt:"Ofis Bekleniyor"};
+}
+
+const $=s=>document.querySelector(s);
+const el=(t,c)=>{const e=document.createElement(t);if(c)e.className=c;return e;};
+const esc=s=>String(s??"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+const fmtDate=v=>{if(!v)return"—";return new Date(v).toLocaleDateString("tr-TR",{day:"2-digit",month:"short",year:"numeric"});};
+const fmtShort=v=>{if(!v)return"—";return new Date(v).toLocaleDateString("tr-TR",{day:"2-digit",month:"short"});};
+const fmtSize=b=>{if(b<1024)return b+" B";if(b<1048576)return(b/1024).toFixed(0)+" KB";return(b/1048576).toFixed(1)+" MB";};
+function toast(msg,type="ok"){
+  const t=el("div","toast "+type);
+  const ic=type==="ok"?'<path d="M3 8l3.5 3.5L13 4"/>':'<path d="M8 4v5M8 12h.01"/>';
+  t.innerHTML=`<svg class="i" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2">${ic}</svg>${esc(msg)}`;
+  $("#toastWrap").appendChild(t);
+  setTimeout(()=>{t.style.opacity="0";t.style.transition=".3s";setTimeout(()=>t.remove(),300);},2500);
+}
+
+const MAX_XLS = 600*1024; // Firestore kayıt sınırı için ~600KB üst limit
+function parseExcel(file){
+  return new Promise((res,rej)=>{
+    if(file.size>MAX_XLS){ rej(new Error("Dosya çok büyük (en fazla 600 KB). Daha küçük bir Excel yükleyin.")); return; }
+    const fr=new FileReader();
+    fr.onload=e=>{try{
+      const data=new Uint8Array(e.target.result);
+      const wb=XLSX.read(data,{type:"array"});
+      const sheetName=wb.SheetNames[0],ws=wb.Sheets[sheetName];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+      let bin="";for(let i=0;i<data.length;i++)bin+=String.fromCharCode(data[i]);
+      res({name:file.name,size:file.size,sheetName,rows:rows.slice(0,60),totalRows:rows.length,b64:btoa(bin)});
+    }catch(err){rej(err);}};
+    fr.onerror=rej;fr.readAsArrayBuffer(file);
+  });
+}
+function downloadExcel(x){
+  const bin=atob(x.b64),buf=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i);
+  const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  const url=URL.createObjectURL(blob),a=el("a");a.href=url;a.download=x.name;a.click();URL.revokeObjectURL(url);
+}
+function dl(id,side){const r=DB.get(id);const x=side==="santiye"?r.santiyeExcel:r.ofisExcel;if(x&&x.b64)downloadExcel(x);}
+
+function setView(v){
+  VIEW=v;
+  [...$("#viewtabs").children].forEach(b=>b.classList.toggle("active",b.dataset.view===v));
+  $("#filterDurum").disabled=(v==="tamamlanan");
+  $("#filterDurum").style.opacity=v==="tamamlanan"?.5:1;
+  render();
+}
+
+function render(){
+  const all=DB.list();
+  const isDone=r=>!!r.tamamlandiAt;
+  $("#kTotal").textContent=all.length;
+  $("#kWo").textContent=all.filter(r=>statusInfo(r).key==="wait_ofis").length;
+  $("#kWi").textContent=all.filter(r=>statusInfo(r).key==="wait_imalat").length;
+  $("#kOk").textContent=all.filter(isDone).length;
+  $("#cntAktif").textContent=all.filter(r=>!isDone(r)).length;
+  $("#cntDone").textContent=all.filter(isDone).length;
+
+  const sel=$("#filterSantiye"),cur=sel.value;
+  const sites=[...new Set(all.map(r=>r.santiye))].sort();
+  sel.innerHTML='<option value="">Tüm şantiyeler</option>'+sites.map(s=>`<option>${esc(s)}</option>`).join("");
+  sel.value=cur;
+
+  const q=$("#searchInput").value.trim().toLowerCase(),fS=$("#filterSantiye").value,fD=$("#filterDurum").value;
+  let list=all.filter(r=>{
+    const done=isDone(r);
+    if(VIEW==="aktif" && done) return false;
+    if(VIEW==="tamamlanan" && !done) return false;
+    if(fS && r.santiye!==fS) return false;
+    if(VIEW==="aktif" && fD && statusInfo(r).key!==fD) return false;
+    if(q && !((r.santiye+" "+r.talepEden+" "+r.neden+" "+r.id).toLowerCase().includes(q))) return false;
+    return true;
+  });
+
+  const rows=$("#rows"),empty=$("#emptyState");rows.innerHTML="";
+  if(all.length===0){
+    empty.innerHTML=`<div class="empty">
+      <div class="big"><svg width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="20" height="18" rx="2"/><path d="M3 9h20M9 9v13"/></svg></div>
+      <h3>Henüz ilave talebi yok</h3><p>İlk ilave talebini oluşturarak başlayın.</p>
+      <button class="btn btn-santiye" onclick="openNew()">Yeni İlave Talebi</button></div>`;return;
+  }
+  if(list.length===0){
+    const m=VIEW==="tamamlanan"?"Henüz tamamlanan ilave yok.":"Eşleşen aktif kayıt yok.";
+    empty.innerHTML=`<div class="empty"><h3>${m}</h3><p>${VIEW==="tamamlanan"?"Şantiye bir ilaveyi tamamlandı yaptığında burada listelenir.":"Arama veya filtreleri değiştirin."}</p></div>`;return;
+  }
+  empty.innerHTML="";
+  list.forEach(r=>{
+    const st=statusInfo(r);
+    const hasO=!!r.ofisExcel,hasI=!!r.teslimTarihi,hasT=!!r.tamamlandiAt;
+    let nxCls="",nxTag="";
+    if(st.key==="wait_ofis"){nxCls="nx-ofis";nxTag="Sıradaki: Ofis imalat dosyası";}
+    else if(st.key==="wait_imalat"){nxCls="nx-imalat";nxTag="Sıradaki: İmalat teslim tarihi";}
+    else if(st.key==="planned"){nxCls="nx-santiye";nxTag="Sıradaki: Şantiye tamamlandı onayı";}
+    const row=el("div","row"+(hasT?" is-done":"")+(nxCls?" "+nxCls:""));
+    row.onclick=()=>openDetail(r.id);
+    row.innerHTML=`
+      <div class="idcell">${esc(r.id)}</div>
+      <div class="who">${esc(r.santiye)}<small>${esc(r.talepEden||"—")}</small>
+        ${nxTag?`<div class="nx-tag">● ${nxTag}</div>`:''}</div>
+      <div class="tarih">${fmtDate(r.tarih)}</div>
+      <div class="neden">${esc(r.neden)||"—"}</div>
+      <div class="stepper">
+        <span class="snode s1 done" title="1 · Şantiye talebi">1</span>
+        <span class="sbar ${hasO?'d-o':''}"></span>
+        <span class="snode s2 ${hasO?'done':''}" title="2 · Ofis imalatı">2</span>
+        <span class="sbar ${hasI?'d-i':''}"></span>
+        <span class="snode s3 ${hasI?'done':''}" title="3 · İmalat teslim tarihi">3</span>
+        <span class="sbar ${hasT?'d-t':''}"></span>
+        <span class="snode s4 ${hasT?'done':''}" title="4 · Şantiye tamamlandı">4</span>
+      </div>
+      <div><span class="badge ${st.cls}"><span class="bd"></span>${st.txt}</span></div>`;
+    rows.appendChild(row);
+  });
+}
+
+/* -------- Yeni talep -------- */
+function openNew(){
+  newFile=null;
+  const today=new Date().toISOString().slice(0,10);
+  const ov=el("div","overlay");ov.id="ovNew";
+  ov.innerHTML=`
+   <div class="modal">
+    <div class="modal-head"><h2>Yeni İlave Talebi</h2><span class="sub">1 · Şantiye</span>
+      <button class="iconbtn" onclick="closeOv('ovNew')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l8 8M11 3l-8 8"/></svg></button></div>
+    <div class="modal-body">
+      <div class="grid2">
+        <div class="field"><label>İlaveyi isteyen <span class="req">*</span></label><input type="text" id="fEden" placeholder="Örn: Ahmet Yılmaz" autocomplete="off"></div>
+        <div class="field"><label>Talep tarihi <span class="req">*</span></label><input type="date" id="fTarih" value="${today}"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Şantiye adı <span class="req">*</span></label><input type="text" id="fSantiye" placeholder="Örn: Bahçeşehir Konakları B-Blok" autocomplete="off"></div>
+        <div class="field"><label>Öncelik</label><select id="fOncelik"><option>Normal</option><option>Acil</option><option>Düşük</option></select></div>
+      </div>
+      <div class="field"><label>İlave nedeni <span class="req">*</span></label>
+        <textarea id="fNeden" placeholder="İlavenin neden istendiğini açıklayın (eksik dolap, revizyon, müşteri talebi vb.)"></textarea></div>
+      <div class="field"><label>İlave dosyası (Excel)</label>
+        <div id="dropZone" class="drop">
+          <svg width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 3v11m0-11l-4 4m4-4l4 4M4 17v3a2 2 0 002 2h14a2 2 0 002-2v-3"/></svg>
+          <div><b>Excel dosyasını sürükleyin</b> veya tıklayın</div>
+          <div class="hint">.xlsx / .xls — ilave edilecek parça / dolap listesi</div></div>
+        <input type="file" id="fFile" accept=".xlsx,.xls" class="hidden"><div id="filePreview"></div></div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeOv('ovNew')">Vazgeç</button>
+      <button class="btn btn-santiye" onclick="saveNew()">Talebi Oluştur</button></div>
+   </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener("mousedown",e=>{if(e.target===ov)closeOv("ovNew");});
+  wireDrop($("#dropZone"),$("#fFile"),async f=>{
+    try{const meta=await parseExcel(f);newFile={file:f,meta};renderFilePill("#filePreview",meta,()=>{newFile=null;renderFilePill("#filePreview",null);$("#dropZone").style.display="";});$("#dropZone").style.display="none";}
+    catch(e){toast("Excel okunamadı: "+e.message,"err");}
+  });
+}
+async function saveNew(){
+  const talepEden=$("#fEden").value.trim(),santiye=$("#fSantiye").value.trim(),tarih=$("#fTarih").value,neden=$("#fNeden").value.trim();
+  if(!talepEden){toast("İlaveyi isteyen kişi gerekli","err");return;}
+  if(!santiye){toast("Şantiye adı gerekli","err");return;}
+  if(!tarih){toast("Talep tarihi gerekli","err");return;}
+  if(!neden){toast("İlave nedeni gerekli","err");return;}
+  if(!FIREBASE_READY){toast("Önce Firebase yapılandırılmalı","err");return;}
+  const id=newId();
+  try{
+    const santiyeExcel = newFile ? newFile.meta : null;
+    await DB.createWithId(id,{talepEden,santiye,tarih,neden,oncelik:$("#fOncelik").value,
+      santiyeExcel,ofisExcel:null,ofisAt:null,teslimTarihi:null,imalatNot:null,imalatAt:null,tamamlandiAt:null,tamamNot:null,notes:[]});
+    closeOv("ovNew");toast("İlave talebi oluşturuldu");
+  }catch(err){toast("Kaydedilemedi: "+(err.code||err.message),"err");}
+}
+
+/* -------- Detay: 4 aşama, her aksiyon karttan -------- */
+function openDetail(id){
+  const r=DB.get(id);if(!r)return;
+  const st=statusInfo(r);
+  const ov=el("div","overlay");ov.id="ovDetail";
+  ov.innerHTML=`
+   <div class="modal wide">
+    <div class="detail-head"><div class="no">${esc(r.id)}</div>
+      <div><h2>${esc(r.santiye)}</h2><div class="meta">İsteyen: ${esc(r.talepEden||"—")} · ${fmtDate(r.tarih)}</div></div>
+      <span class="badge ${st.cls}"><span class="bd"></span>${st.txt}</span><div class="spacer"></div>
+      <button class="iconbtn" title="Sil" onclick="delRequest('${r.id}')"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 4h11M6 4V2.5A1 1 0 017 1.5h3a1 1 0 011 1V4M5 4l.7 9a1 1 0 001 .9h4.6a1 1 0 001-.9L14 4"/></svg></button>
+      <button class="iconbtn" onclick="closeOv('ovDetail')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l8 8M11 3l-8 8"/></svg></button></div>
+
+    <div class="flow">
+      <div class="stage s">
+        <div class="stage-head"><span class="stage-num">1</span><b>Şantiye Talebi</b><span class="st-status">${fmtDate(r.tarih)}</span></div>
+        <div class="info-grid">
+          <div class="cell"><div class="k">İlaveyi isteyen</div><div class="v">${esc(r.talepEden||"—")}</div></div>
+          <div class="cell"><div class="k">Şantiye</div><div class="v">${esc(r.santiye)}</div></div>
+          <div class="cell"><div class="k">Öncelik</div><div class="v">${esc(r.oncelik||"Normal")}</div></div>
+          <div class="cell"><div class="k">Talep no</div><div class="v" style="font-family:var(--mono)">${esc(r.id)}</div></div>
+        </div>
+        <div style="margin-bottom:12px"><div class="k" style="font-size:11px;color:var(--ink-faint);font-weight:600;margin-bottom:4px">İlave nedeni</div><div class="reason-box">${esc(r.neden)||"—"}</div></div>
+        ${r.santiyeExcel?excelBlock(r.santiyeExcel,"santiye",r.id):'<div class="stage-empty">Excel dosyası eklenmedi.</div>'}
+      </div>
+      <div class="flow-link"></div>
+
+      <div class="stage o">
+        <div class="stage-head"><span class="stage-num">2</span><b>Ofis · İmalat Dosyası</b><span class="st-status">${r.ofisAt?"Eklendi "+fmtDate(r.ofisAt):"Bekliyor"}</span></div>
+        ${r.ofisExcel?excelBlock(r.ofisExcel,"ofis",r.id):`<div class="stage-act">
+              <p>Bu talep (<b>${esc(r.id)} · ${esc(r.santiye)}</b>) için imalat Excel'ini yükleyin.</p>
+              <button class="btn btn-ofis btn-sm" onclick="triggerUpload('${r.id}')">İmalat Excel Ekle</button>
+              <input type="file" id="upOfis" accept=".xlsx,.xls" class="hidden"></div>`}
+      </div>
+      <div class="flow-link"></div>
+
+      <div class="stage i">
+        <div class="stage-head"><span class="stage-num">3</span><b>İmalat · Teslim</b><span class="st-status">${r.teslimTarihi?"Planlandı":"Bekliyor"}</span></div>
+        ${imalatStage(r)}
+      </div>
+      <div class="flow-link"></div>
+
+      <div class="stage t">
+        <div class="stage-head"><span class="stage-num">4</span><b>Şantiye · Tamamlandı</b><span class="st-status">${r.tamamlandiAt?"Tamamlandı "+fmtDate(r.tamamlandiAt):"Bekliyor"}</span></div>
+        ${tamamStage(r)}
+      </div>
+    </div>
+
+    <div class="detail-foot"><div class="notes">
+      <h4>Genel Notlar</h4><p class="nh-sub">Herkes not ekleyebilir — şantiye, ofis ve imalat ortak görür.</p>
+      <div id="noteList"></div>
+      <div class="note-add">
+        <input class="n-name" id="noteName" placeholder="İsim (opsiyonel)" value="${esc(lastNoteName)}">
+        <input class="n-txt" id="noteInput" placeholder="Not yaz…" onkeydown="if(event.key==='Enter')addNote('${r.id}')">
+        <button class="btn btn-primary btn-sm" onclick="addNote('${r.id}')">Gönder</button>
+      </div></div></div>
+   </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener("mousedown",e=>{if(e.target===ov)closeOv("ovDetail");});
+  renderNotes(r);
+}
+
+function imalatStage(r){
+  if(!r.ofisExcel) return '<div class="stage-empty">Önce ofis imalat dosyasını eklemeli.</div>';
+  if(r.teslimTarihi){
+    return `<div class="done-shown">
+      <div><div class="k">Teslim tarihi</div><div class="big-date" style="color:var(--imalat)">${fmtDate(r.teslimTarihi)}</div></div>
+      ${r.imalatNot?`<div style="flex:1;color:var(--ink-soft);font-size:13px">${esc(r.imalatNot)}</div>`:''}
+      ${!r.tamamlandiAt?`<button class="btn btn-ghost btn-sm" onclick="clearTeslim('${r.id}')">Tarihi değiştir</button>`:''}
+    </div>`;
+  }
+  const today=new Date().toISOString().slice(0,10);
+  return `<div class="stage-act imalat"><p>Bu imalat için teslim tarihini belirleyin.</p>
+    <div class="date-set">
+      <div class="field"><label style="text-align:left">Teslim tarihi</label><input type="date" id="teslimDate" value="${today}" style="width:auto"></div>
+      <div class="field" style="flex:1;min-width:160px"><label style="text-align:left">Not (opsiyonel)</label><input type="text" id="teslimNot" placeholder="Örn: Kaplama sonrası"></div>
+      <button class="btn btn-imalat btn-sm" onclick="setTeslim('${r.id}')">Teslim Tarihini Kaydet</button>
+    </div></div>`;
+}
+
+function tamamStage(r){
+  if(r.tamamlandiAt){
+    return `<div class="done-shown">
+      <div><div class="k">Tamamlanma tarihi</div><div class="big-date" style="color:var(--ok)">${fmtDate(r.tamamlandiAt)}</div></div>
+      ${r.tamamNot?`<div style="flex:1;color:var(--ink-soft);font-size:13px">${esc(r.tamamNot)}</div>`:''}
+      <span class="badge b-ok"><span class="bd"></span>Şantiye tamamladı</span>
+      <button class="btn btn-ghost btn-sm" onclick="clearTamam('${r.id}')">Geri al</button>
+    </div>`;
+  }
+  if(!r.teslimTarihi) return '<div class="stage-empty">İmalat teslim tarihi verince şantiye tamamlayabilir.</div>';
+  return `<div class="stage-act santiye"><p>İlave şantiyeye ulaştıysa tamamlandı olarak işaretleyin. Kayıt "Tamamlanan İlaveler" bölümüne taşınır.</p>
+    <div class="date-set">
+      <div class="field" style="flex:1;min-width:180px"><label style="text-align:left">Not (opsiyonel)</label><input type="text" id="tamamNot" placeholder="Örn: yerine montajlandı"></div>
+      <button class="btn btn-santiye btn-sm" onclick="setTamam('${r.id}')">Tamamlandı Yap</button>
+    </div></div>`;
+}
+
+function excelBlock(x,side,id){
+  const color=side==="santiye"?"var(--santiye)":"var(--ofis)";
+  return `<div class="filecard">
+    <div class="filecard-row"><div class="xls">XLS</div>
+      <div class="meta"><div class="fn">${esc(x.name)}</div><div class="fs">${x.totalRows} satır · ${esc(x.sheetName)} · ${fmtSize(x.size)}</div></div>
+      <button class="btn btn-sm" onclick="openXls('${id}','${side}')">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 7s2.5-4.5 6-4.5S13 7 13 7s-2.5 4.5-6 4.5S1 7 1 7z"/><circle cx="7" cy="7" r="1.8"/></svg>Önizle</button>
+      <button class="btn btn-sm" style="color:${color}" onclick="dl('${id}','${side}')">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v8m0 0L4 7m3 3l3-3M2 12h10"/></svg>İndir</button></div></div>`;
+}
+function xlsTable(x,big){
+  const rows=x.rows;
+  if(!rows||!rows.length)return "<div class='tablewrap' style='padding:16px;font-family:var(--mono);font-size:12px;color:var(--ink-faint)'>Bu sayfada önizlenecek veri yok.</div>";
+  // en geniş satıra göre sütun sayısı (bazı dosyalarda başlık satırı kısa olabilir)
+  let cols=0;rows.forEach(r=>{if(r.length>cols)cols=r.length;});
+  const head=rows[0]||[],body=rows.slice(1,big?200:15);
+  let h=`<div class="tablewrap${big?' big':''}"><table class='xls'><thead><tr><th class='rownum'>#</th>`;
+  for(let c=0;c<cols;c++)h+=`<th>${esc(head[c]!==undefined&&head[c]!==""?head[c]:"Sütun "+(c+1))}</th>`;
+  h+="</tr></thead><tbody>";
+  body.forEach((row,i)=>{h+=`<tr><td class='rownum'>${i+2}</td>`;for(let c=0;c<cols;c++)h+=`<td>${esc(row[c])}</td>`;h+="</tr>";});
+  h+="</tbody></table></div>";return h;
+}
+function openXls(id,side){
+  const r=DB.get(id);const x=side==="santiye"?r.santiyeExcel:r.ofisExcel;if(!x)return;
+  const color=side==="santiye"?"var(--santiye)":"var(--ofis)";
+  const shown=Math.min(x.totalRows>0?x.totalRows-1:0,199);
+  const ov=el("div","overlay");ov.id="ovXls";
+  ov.innerHTML=`<div class="modal wide">
+    <div class="modal-head">
+      <div style="flex:1;min-width:0"><h2 style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.name)}</h2>
+        <div class="sub">${x.totalRows} satır · ${esc(x.sheetName)} · ${fmtSize(x.size)}${x.totalRows-1>59?" · ilk 60 satır önizleme (tamamı İndir'de)":""}</div></div>
+      <button class="btn btn-sm" style="color:${color}" onclick="dl('${id}','${side}')">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v8m0 0L4 7m3 3l3-3M2 12h10"/></svg>İndir</button>
+      <button class="iconbtn" onclick="closeOv('ovXls')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
+    </div>
+    <div style="padding:18px 22px 22px">${xlsTable(x,true)}</div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener("mousedown",e=>{if(e.target===ov)closeOv("ovXls");});
+}
+
+function triggerUpload(id){
+  const inp=$("#upOfis");inp.value="";
+  inp.onchange=async e=>{const f=e.target.files[0];if(!f)return;
+    try{const meta=await parseExcel(f);await DB.update(id,{ofisExcel:meta,ofisAt:Date.now()});reopen(id);toast("İmalat dosyası eklendi");}
+    catch(err){toast(""+(err.message||err.code),"err");}};
+  inp.click();
+}
+async function setTeslim(id){const d=$("#teslimDate").value;if(!d){toast("Teslim tarihi seçin","err");return;}
+  try{await DB.update(id,{teslimTarihi:d,imalatNot:$("#teslimNot").value.trim()||null,imalatAt:Date.now()});reopen(id);toast("Teslim tarihi kaydedildi");}catch(e){toast("Hata: "+(e.code||e.message),"err");}}
+async function clearTeslim(id){try{await DB.update(id,{teslimTarihi:null,imalatNot:null});reopen(id);}catch(e){toast("Hata: "+(e.code||e.message),"err");}}
+async function setTamam(id){try{await DB.update(id,{tamamlandiAt:Date.now(),tamamNot:($("#tamamNot")?$("#tamamNot").value.trim():"")||null});reopen(id);toast("İlave tamamlandı — Tamamlanan İlaveler'e taşındı");}catch(e){toast("Hata: "+(e.code||e.message),"err");}}
+async function clearTamam(id){try{await DB.update(id,{tamamlandiAt:null,tamamNot:null});reopen(id);toast("Tamamlanma geri alındı");}catch(e){toast("Hata: "+(e.code||e.message),"err");}}
+function reopen(id){closeOv("ovDetail");render();openDetail(id);}
+
+function renderNotes(r){
+  const box=$("#noteList");if(!box)return;const notes=r.notes||[];
+  if(!notes.length){box.innerHTML="<div style='font-size:12.5px;color:var(--ink-faint)'>Henüz not yok.</div>";return;}
+  box.innerHTML=notes.map(n=>{
+    const who=n.name?esc(n.name):"Not";
+    return `<div class="note"><div class="w"></div>
+      <div class="b"><div class="txt">${esc(n.txt)}</div>
+      <div class="m">${who} · ${new Date(n.at).toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}</div></div></div>`;
+  }).join("");
+}
+async function addNote(id){
+  const inp=$("#noteInput"),txt=inp.value.trim();if(!txt)return;
+  const name=($("#noteName")?$("#noteName").value.trim():"");
+  if(name){lastNoteName=name;try{localStorage.setItem("ik.noteName",name);}catch(e){}}
+  const r=DB.get(id),notes=[...(r.notes||[]),{name:name||null,txt,at:Date.now()}];
+  inp.value="";
+  try{await DB.update(id,{notes});renderNotes(DB.get(id));}catch(e){toast("Not eklenemedi: "+(e.code||e.message),"err");}
+}
+async function delRequest(id){if(!confirm("Bu ilave talebi kalıcı olarak silinsin mi?"))return;
+  try{await DB.remove(id);closeOv("ovDetail");toast("Talep silindi");}catch(e){toast("Silinemedi: "+(e.code||e.message),"err");}}
+
+function wireDrop(zone,input,onFile){
+  zone.onclick=()=>input.click();
+  input.onchange=e=>{if(e.target.files[0])onFile(e.target.files[0]);};
+  ["dragover","dragenter"].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();zone.classList.add("drag");}));
+  ["dragleave","drop"].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();zone.classList.remove("drag");}));
+  zone.addEventListener("drop",e=>{const f=e.dataTransfer.files[0];if(f)onFile(f);});
+}
+function renderFilePill(sel,x,onRemove){
+  const box=$(sel);if(!box)return;if(!x){box.innerHTML="";return;}
+  box.innerHTML=`<div class="filepill"><div class="xls">XLS</div>
+    <div class="meta"><div class="fn">${esc(x.name)}</div><div class="fs">${x.totalRows} satır · ${fmtSize(x.size)}</div></div>
+    <button class="rm" title="Kaldır"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>`;
+  box.querySelector(".rm").onclick=onRemove;
+}
+
+function closeOv(id){const o=$("#"+id);if(o)o.remove();}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){if($("#ovXls"))closeOv("ovXls");else{closeOv("ovNew");closeOv("ovDetail");}}});
+$("#viewtabs").addEventListener("click",e=>{const b=e.target.closest("button");if(b)setView(b.dataset.view);});
+["searchInput","filterSantiye","filterDurum"].forEach(id=>$("#"+id).addEventListener("input",render));
+$("#newBtn").addEventListener("click",openNew);
+
+DB.init(render);
+render();
+if(!FIREBASE_READY){
+  const b=el("div");
+  b.style.cssText="background:var(--warn-bg);color:#7a5a06;border:1px solid #e6d59a;border-radius:10px;padding:12px 16px;margin:0 0 18px;font-size:13px";
+  b.innerHTML="⚠️ <b>Firebase bağlı değil.</b> Bu dosyadaki <code>firebaseConfig</code> alanını kendi Firebase projenin bilgileriyle doldurup tekrar yükleyin. Kurulum adımları için yardım isteyin.";
+  const wrap=$(".wrap");wrap.insertBefore(b,wrap.firstChild);
+}
+</script>
+</body>
+</html>
