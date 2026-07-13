@@ -410,7 +410,7 @@ function parseExcel(file){
       const sheetName=wb.SheetNames[0],ws=wb.Sheets[sheetName];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
       let bin="";for(let i=0;i<data.length;i++)bin+=String.fromCharCode(data[i]);
-      res({name:file.name,size:file.size,sheetName,rows:rows.slice(0,60),totalRows:rows.length,b64:btoa(bin)});
+      res({name:file.name,size:file.size,sheetName,rowsJson:JSON.stringify(rows.slice(0,60)),totalRows:rows.length,b64:btoa(bin)});
     }catch(err){rej(err);}};
     fr.onerror=rej;fr.readAsArrayBuffer(file);
   });
@@ -659,7 +659,7 @@ function excelBlock(x,side,id){
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v8m0 0L4 7m3 3l3-3M2 12h10"/></svg>İndir</button></div></div>`;
 }
 function xlsTable(x,big){
-  const rows=x.rows;
+  let rows=[];try{rows=JSON.parse(x.rowsJson||"[]");}catch(e){rows=[];}
   if(!rows||!rows.length)return "<div class='tablewrap' style='padding:16px;font-family:var(--mono);font-size:12px;color:var(--ink-faint)'>Bu sayfada önizlenecek veri yok.</div>";
   // en geniş satıra göre sütun sayısı (bazı dosyalarda başlık satırı kısa olabilir)
   let cols=0;rows.forEach(r=>{if(r.length>cols)cols=r.length;});
