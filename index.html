@@ -165,6 +165,7 @@ input,textarea,select{font-family:inherit;font-size:14px}
 .drop:hover,.drop.drag{border-color:var(--ofis);background:var(--ofis-bg);color:var(--ofis)}
 .drop svg{margin-bottom:8px}
 .drop .hint{font-size:12px;color:var(--ink-faint);margin-top:4px}
+#filePreview{display:flex;flex-direction:column;gap:8px;margin-top:8px}
 .filepill{display:flex;align-items:center;gap:11px;background:var(--ofis-bg);border:1px solid #cfe0e9;border-radius:9px;padding:11px 13px}
 .filepill .xls{width:34px;height:34px;border-radius:7px;background:var(--ok);color:#fff;display:grid;place-items:center;font-family:var(--mono);font-size:10px;font-weight:700;flex-shrink:0}
 .filepill .meta{flex:1;min-width:0}
@@ -178,6 +179,16 @@ input,textarea,select{font-family:inherit;font-size:14px}
 .detail-head h2{margin:0;font-size:16px}
 .detail-head .meta{font-size:12px;color:var(--ink-soft);margin-top:2px}
 .detail-head .spacer{flex:1}
+/* Dosya alanı göstergesi */
+.quota{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--ink-soft);
+  background:var(--canvas);border-radius:8px;padding:8px 12px;margin-bottom:16px}
+.quota b{font-family:var(--mono);color:var(--ink)}
+.quota .qbar{flex:1;max-width:220px;height:6px;background:var(--line);border-radius:4px;overflow:hidden}
+.quota .qbar i{display:block;height:100%;background:var(--ok);transition:.2s}
+.quota.warn .qbar i{background:var(--warn)} .quota.warn b{color:var(--warn)}
+.quota.full .qbar i{background:var(--danger)} .quota.full b{color:var(--danger)}
+.quota .qnote{color:var(--ink-faint)}
+
 .flow{padding:22px 24px}
 .stage{border:1px solid var(--line);border-radius:12px;padding:16px 18px;background:#fff;border-left-width:4px}
 .stage.s{border-left-color:var(--santiye)} .stage.o{border-left-color:var(--ofis)} .stage.i{border-left-color:var(--imalat)} .stage.t{border-left-color:var(--ok)}
@@ -375,13 +386,29 @@ function setStorageStatus(kind,text){
   t.textContent=text;
 }
 
-let VIEW="aktif", newFile=null, lastNoteName="";
+let VIEW="aktif", newFiles=[], lastNoteName="";
+
+/* ---------- ÇOKLU DOSYA UYUM KATMANI ----------
+   Yeni kayıtlar: santiyeExcels[] / ofisExcels[]  (liste)
+   Eski kayıtlar: santiyeExcel  / ofisExcel       (tek dosya)
+   filesOf() ikisini de okur -> eski veriler bozulmaz.                */
+function filesOf(r,side){
+  if(!r) return [];
+  const arrKey = side==="santiye"?"santiyeExcels":"ofisExcels";
+  const oldKey = side==="santiye"?"santiyeExcel":"ofisExcel";
+  if(Array.isArray(r[arrKey])) return r[arrKey];
+  if(r[oldKey]) return [r[oldKey]];
+  return [];
+}
+function sumBytes(r){
+  return [...filesOf(r,"santiye"),...filesOf(r,"ofis")].reduce((s,x)=>s+(x.size||0),0);
+}
 try{lastNoteName=localStorage.getItem("ik.noteName")||"";}catch(e){}
 
 function statusInfo(r){
   if(r.tamamlandiAt) return {key:"tamamlandi",cls:"b-ok",txt:"Tamamlandı"};
   if(r.teslimTarihi) return {key:"planned",cls:"b-plan",txt:"Teslim: "+fmtShort(r.teslimTarihi)};
-  if(r.ofisExcel)    return {key:"wait_imalat",cls:"b-wi",txt:"İmalat Bekleniyor"};
+  if(filesOf(r,"ofis").length) return {key:"wait_imalat",cls:"b-wi",txt:"İmalat Bekleniyor"};
   return {key:"wait_ofis",cls:"b-wo",txt:"Ofis Bekleniyor"};
 }
 
@@ -399,18 +426,24 @@ function toast(msg,type="ok"){
   setTimeout(()=>{t.style.opacity="0";t.style.transition=".3s";setTimeout(()=>t.remove(),300);},2500);
 }
 
-const MAX_XLS = 600*1024; // Firestore kayıt sınırı için ~600KB üst limit
+const MAX_XLS   = 400*1024; // tek dosya üst sınırı (~400 KB)
+const MAX_TOTAL = 550*1024; // bir talepteki TÜM dosyaların toplam sınırı (Firestore 1 MB kayıt limiti için)
 function parseExcel(file){
   return new Promise((res,rej)=>{
-    if(file.size>MAX_XLS){ rej(new Error("Dosya çok büyük (en fazla 600 KB). Daha küçük bir Excel yükleyin.")); return; }
+    if(file.size>MAX_XLS){ rej(new Error("dosya çok büyük (en fazla 400 KB)")); return; }
     const fr=new FileReader();
     fr.onload=e=>{try{
       const data=new Uint8Array(e.target.result);
       const wb=XLSX.read(data,{type:"array"});
       const sheetName=wb.SheetNames[0],ws=wb.Sheets[sheetName];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+      // Bazı Excel dosyalarında biçimlendirme boş satırlara kadar iner ve
+      // sayfa milyonlarca "boş satır" içeriyormuş gibi görünür. Sondaki boşları kırp.
+      let last=rows.length-1;
+      while(last>=0 && rows[last].every(c=>String(c).trim()==="")) last--;
+      const clean=rows.slice(0,last+1);
       let bin="";for(let i=0;i<data.length;i++)bin+=String.fromCharCode(data[i]);
-      res({name:file.name,size:file.size,sheetName,rowsJson:JSON.stringify(rows.slice(0,60)),totalRows:rows.length,b64:btoa(bin)});
+      res({name:file.name,size:file.size,sheetName,rowsJson:JSON.stringify(clean.slice(0,60)),totalRows:clean.length,b64:btoa(bin)});
     }catch(err){rej(err);}};
     fr.onerror=rej;fr.readAsArrayBuffer(file);
   });
@@ -421,7 +454,7 @@ function downloadExcel(x){
   const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
   const url=URL.createObjectURL(blob),a=el("a");a.href=url;a.download=x.name;a.click();URL.revokeObjectURL(url);
 }
-function dl(id,side){const r=DB.get(id);const x=side==="santiye"?r.santiyeExcel:r.ofisExcel;if(x&&x.b64)downloadExcel(x);}
+function dl(id,side,i){const x=filesOf(DB.get(id),side)[i||0];if(x&&x.b64)downloadExcel(x);}
 
 function setView(v){
   VIEW=v;
@@ -471,7 +504,7 @@ function render(){
   empty.innerHTML="";
   list.forEach(r=>{
     const st=statusInfo(r);
-    const hasO=!!r.ofisExcel,hasI=!!r.teslimTarihi,hasT=!!r.tamamlandiAt;
+    const hasO=filesOf(r,"ofis").length>0,hasI=!!r.teslimTarihi,hasT=!!r.tamamlandiAt;
     let nxCls="",nxTag="";
     if(st.key==="wait_ofis"){nxCls="nx-ofis";nxTag="Sıradaki: Ofis imalat dosyası";}
     else if(st.key==="wait_imalat"){nxCls="nx-imalat";nxTag="Sıradaki: İmalat teslim tarihi";}
@@ -500,7 +533,7 @@ function render(){
 
 /* -------- Yeni talep -------- */
 function openNew(){
-  newFile=null;
+  newFiles=[];
   const today=new Date().toISOString().slice(0,10);
   const ov=el("div","overlay");ov.id="ovNew";
   ov.innerHTML=`
@@ -518,22 +551,37 @@ function openNew(){
       </div>
       <div class="field"><label>İlave nedeni <span class="req">*</span></label>
         <textarea id="fNeden" placeholder="İlavenin neden istendiğini açıklayın (eksik dolap, revizyon, müşteri talebi vb.)"></textarea></div>
-      <div class="field"><label>İlave dosyası (Excel)</label>
+      <div class="field"><label>İlave dosyaları (Excel) — birden fazla ekleyebilirsiniz</label>
         <div id="dropZone" class="drop">
           <svg width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 3v11m0-11l-4 4m4-4l4 4M4 17v3a2 2 0 002 2h14a2 2 0 002-2v-3"/></svg>
-          <div><b>Excel dosyasını sürükleyin</b> veya tıklayın</div>
-          <div class="hint">.xlsx / .xls — ilave edilecek parça / dolap listesi</div></div>
-        <input type="file" id="fFile" accept=".xlsx,.xls" class="hidden"><div id="filePreview"></div></div>
+          <div><b>Excel dosyalarını sürükleyin</b> veya tıklayın</div>
+          <div class="hint">.xlsx / .xls — birden fazla dosya seçebilirsiniz</div></div>
+        <input type="file" id="fFile" accept=".xlsx,.xls" multiple class="hidden"><div id="filePreview"></div></div>
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeOv('ovNew')">Vazgeç</button>
       <button class="btn btn-santiye" onclick="saveNew()">Talebi Oluştur</button></div>
    </div>`;
   document.body.appendChild(ov);
   ov.addEventListener("mousedown",e=>{if(e.target===ov)closeOv("ovNew");});
-  wireDrop($("#dropZone"),$("#fFile"),async f=>{
-    try{const meta=await parseExcel(f);newFile={file:f,meta};renderFilePill("#filePreview",meta,()=>{newFile=null;renderFilePill("#filePreview",null);$("#dropZone").style.display="";});$("#dropZone").style.display="none";}
-    catch(e){toast("Excel okunamadı: "+e.message,"err");}
+  wireDrop($("#dropZone"),$("#fFile"),async files=>{
+    for(const f of files){
+      try{
+        const meta=await parseExcel(f);
+        if(newFiles.some(x=>x.meta.name===meta.name)){ toast(meta.name+" zaten eklendi","err"); continue; }
+        const t=newFiles.reduce((s,x)=>s+x.meta.size,0)+meta.size;
+        if(t>MAX_TOTAL){ toast("Toplam dosya boyutu sınırı aşıldı (en fazla 550 KB)","err"); continue; }
+        newFiles.push({file:f,meta});
+      }catch(e){ toast(f.name+": "+(e.message||"okunamadı"),"err"); }
+    }
+    renderNewFiles();
   });
+}
+function renderNewFiles(){
+  const box=$("#filePreview"); if(!box) return;
+  box.innerHTML=newFiles.map((x,i)=>`<div class="filepill"><div class="xls">XLS</div>
+    <div class="meta"><div class="fn">${esc(x.meta.name)}</div><div class="fs">${x.meta.totalRows} satır · ${fmtSize(x.meta.size)}</div></div>
+    <button class="rm" data-i="${i}" title="Kaldır"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>`).join("");
+  box.querySelectorAll(".rm").forEach(b=>b.onclick=()=>{ newFiles.splice(+b.dataset.i,1); renderNewFiles(); });
 }
 async function saveNew(){
   const talepEden=$("#fEden").value.trim(),santiye=$("#fSantiye").value.trim(),tarih=$("#fTarih").value,neden=$("#fNeden").value.trim();
@@ -544,9 +592,8 @@ async function saveNew(){
   if(!FIREBASE_READY){toast("Önce Firebase yapılandırılmalı","err");return;}
   const id=newId();
   try{
-    const santiyeExcel = newFile ? newFile.meta : null;
     await DB.createWithId(id,{talepEden,santiye,tarih,neden,oncelik:$("#fOncelik").value,
-      santiyeExcel,ofisExcel:null,ofisAt:null,teslimTarihi:null,imalatNot:null,imalatAt:null,tamamlandiAt:null,tamamNot:null,notes:[]});
+      santiyeExcels:newFiles.map(x=>x.meta),ofisExcels:[],ofisAt:null,teslimTarihi:null,imalatNot:null,imalatAt:null,tamamlandiAt:null,tamamNot:null,notes:[]});
     closeOv("ovNew");toast("İlave talebi oluşturuldu");
   }catch(err){toast("Kaydedilemedi: "+(err.code||err.message),"err");}
 }
@@ -555,6 +602,7 @@ async function saveNew(){
 function openDetail(id){
   const r=DB.get(id);if(!r)return;
   const st=statusInfo(r);
+  const nS=filesOf(r,"santiye").length, nO=filesOf(r,"ofis").length;
   const ov=el("div","overlay");ov.id="ovDetail";
   ov.innerHTML=`
    <div class="modal wide">
@@ -565,8 +613,9 @@ function openDetail(id){
       <button class="iconbtn" onclick="closeOv('ovDetail')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l8 8M11 3l-8 8"/></svg></button></div>
 
     <div class="flow">
+      ${quotaStrip(r)}
       <div class="stage s">
-        <div class="stage-head"><span class="stage-num">1</span><b>Şantiye Talebi</b><span class="st-status">${fmtDate(r.tarih)}</span></div>
+        <div class="stage-head"><span class="stage-num">1</span><b>Şantiye Talebi</b><span class="st-status">${fmtDate(r.tarih)}${nS?" · "+nS+" dosya":""}</span></div>
         <div class="info-grid">
           <div class="cell"><div class="k">İlaveyi isteyen</div><div class="v">${esc(r.talepEden||"—")}</div></div>
           <div class="cell"><div class="k">Şantiye</div><div class="v">${esc(r.santiye)}</div></div>
@@ -574,16 +623,13 @@ function openDetail(id){
           <div class="cell"><div class="k">Talep no</div><div class="v" style="font-family:var(--mono)">${esc(r.id)}</div></div>
         </div>
         <div style="margin-bottom:12px"><div class="k" style="font-size:11px;color:var(--ink-faint);font-weight:600;margin-bottom:4px">İlave nedeni</div><div class="reason-box">${esc(r.neden)||"—"}</div></div>
-        ${r.santiyeExcel?excelBlock(r.santiyeExcel,"santiye",r.id):'<div class="stage-empty">Excel dosyası eklenmedi.</div>'}
+        ${sideFilesBlock(r,"santiye")}
       </div>
       <div class="flow-link"></div>
 
       <div class="stage o">
-        <div class="stage-head"><span class="stage-num">2</span><b>Ofis · İmalat Dosyası</b><span class="st-status">${r.ofisAt?"Eklendi "+fmtDate(r.ofisAt):"Bekliyor"}</span></div>
-        ${r.ofisExcel?excelBlock(r.ofisExcel,"ofis",r.id):`<div class="stage-act">
-              <p>Bu talep (<b>${esc(r.id)} · ${esc(r.santiye)}</b>) için imalat Excel'ini yükleyin.</p>
-              <button class="btn btn-ofis btn-sm" onclick="triggerUpload('${r.id}')">İmalat Excel Ekle</button>
-              <input type="file" id="upOfis" accept=".xlsx,.xls" class="hidden"></div>`}
+        <div class="stage-head"><span class="stage-num">2</span><b>Ofis · İmalat Dosyaları</b><span class="st-status">${r.ofisAt?"Eklendi "+fmtDate(r.ofisAt)+(nO?" · "+nO+" dosya":""):"Bekliyor"}</span></div>
+        ${sideFilesBlock(r,"ofis")}
       </div>
       <div class="flow-link"></div>
 
@@ -614,7 +660,7 @@ function openDetail(id){
 }
 
 function imalatStage(r){
-  if(!r.ofisExcel) return '<div class="stage-empty">Önce ofis imalat dosyasını eklemeli.</div>';
+  if(!filesOf(r,"ofis").length) return '<div class="stage-empty">Önce ofis imalat dosyasını eklemeli.</div>';
   if(r.teslimTarihi){
     return `<div class="done-shown">
       <div><div class="k">Teslim tarihi</div><div class="big-date" style="color:var(--imalat)">${fmtDate(r.teslimTarihi)}</div></div>
@@ -648,15 +694,44 @@ function tamamStage(r){
     </div></div>`;
 }
 
-function excelBlock(x,side,id){
-  const color=side==="santiye"?"var(--santiye)":"var(--ofis)";
-  return `<div class="filecard">
+/* Bu talebin dosya alanı kullanımı — kalan yeri gösterir */
+function quotaStrip(r){
+  const used=sumBytes(r), pct=Math.min(100,Math.round(used/MAX_TOTAL*100));
+  const cls = pct>=100?"full":pct>=75?"warn":"";
+  const n=filesOf(r,"santiye").length+filesOf(r,"ofis").length;
+  return `<div class="quota ${cls}">
+    <span>Dosya alanı:</span><b>${fmtSize(used)}</b><span class="qnote">/ ${fmtSize(MAX_TOTAL)}</span>
+    <span class="qbar"><i style="width:${pct}%"></i></span>
+    <span class="qnote">${n} dosya · %${pct} dolu</span></div>`;
+}
+
+/* Bir tarafın (şantiye/ofis) tüm dosyalarını listeler + "Dosya Ekle" butonu */
+function sideFilesBlock(r,side){
+  const id=r.id, files=filesOf(r,side);
+  const color = side==="santiye"?"var(--santiye)":"var(--ofis)";
+  const btnCls = side==="santiye"?"btn-santiye":"btn-ofis";
+  const inpId  = side==="santiye"?"upSantiye":"upOfis";
+  const inp = `<input type="file" id="${inpId}" accept=".xlsx,.xls" multiple class="hidden">`;
+
+  if(!files.length){
+    const msg = side==="ofis"
+      ? `Bu talep (<b>${esc(id)} · ${esc(r.santiye)}</b>) için imalat Excel'ini yükleyin. Birden fazla dosya seçebilirsiniz.`
+      : `Bu talebe ait Excel dosyası eklenmedi. Birden fazla dosya seçebilirsiniz.`;
+    return `<div class="stage-act${side==="santiye"?" santiye":""}"><p>${msg}</p>
+      <button class="btn ${btnCls} btn-sm" onclick="triggerUpload('${id}','${side}')">${side==="ofis"?"İmalat Excel Ekle":"Excel Ekle"}</button>${inp}</div>`;
+  }
+  const list = files.map((x,i)=>`<div class="filecard" style="margin-bottom:8px">
     <div class="filecard-row"><div class="xls">XLS</div>
       <div class="meta"><div class="fn">${esc(x.name)}</div><div class="fs">${x.totalRows} satır · ${esc(x.sheetName)} · ${fmtSize(x.size)}</div></div>
-      <button class="btn btn-sm" onclick="openXls('${id}','${side}')">
+      <button class="btn btn-sm" onclick="openXls('${id}','${side}',${i})">
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 7s2.5-4.5 6-4.5S13 7 13 7s-2.5 4.5-6 4.5S1 7 1 7z"/><circle cx="7" cy="7" r="1.8"/></svg>Önizle</button>
-      <button class="btn btn-sm" style="color:${color}" onclick="dl('${id}','${side}')">
-        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v8m0 0L4 7m3 3l3-3M2 12h10"/></svg>İndir</button></div></div>`;
+      <button class="btn btn-sm" style="color:${color}" onclick="dl('${id}','${side}',${i})">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v8m0 0L4 7m3 3l3-3M2 12h10"/></svg>İndir</button>
+      <button class="iconbtn" title="Bu dosyayı kaldır" onclick="removeFile('${id}','${side}',${i})">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l7 7M10 3l-7 7"/></svg></button>
+    </div></div>`).join("");
+  return list+`<div style="margin-top:4px"><button class="btn ${btnCls} btn-sm" onclick="triggerUpload('${id}','${side}')">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6.5 2v9M2 6.5h9"/></svg>Dosya Ekle</button>${inp}</div>`;
 }
 function xlsTable(x,big){
   let rows=[];try{rows=JSON.parse(x.rowsJson||"[]");}catch(e){rows=[];}
@@ -670,8 +745,8 @@ function xlsTable(x,big){
   body.forEach((row,i)=>{h+=`<tr><td class='rownum'>${i+2}</td>`;for(let c=0;c<cols;c++)h+=`<td>${esc(row[c])}</td>`;h+="</tr>";});
   h+="</tbody></table></div>";return h;
 }
-function openXls(id,side){
-  const r=DB.get(id);const x=side==="santiye"?r.santiyeExcel:r.ofisExcel;if(!x)return;
+function openXls(id,side,i){
+  const x=filesOf(DB.get(id),side)[i||0];if(!x)return;
   const color=side==="santiye"?"var(--santiye)":"var(--ofis)";
   const shown=Math.min(x.totalRows>0?x.totalRows-1:0,199);
   const ov=el("div","overlay");ov.id="ovXls";
@@ -679,7 +754,7 @@ function openXls(id,side){
     <div class="modal-head">
       <div style="flex:1;min-width:0"><h2 style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.name)}</h2>
         <div class="sub">${x.totalRows} satır · ${esc(x.sheetName)} · ${fmtSize(x.size)}${x.totalRows-1>59?" · ilk 60 satır önizleme (tamamı İndir'de)":""}</div></div>
-      <button class="btn btn-sm" style="color:${color}" onclick="dl('${id}','${side}')">
+      <button class="btn btn-sm" style="color:${color}" onclick="dl('${id}','${side}',${i||0})">
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v8m0 0L4 7m3 3l3-3M2 12h10"/></svg>İndir</button>
       <button class="iconbtn" onclick="closeOv('ovXls')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
     </div>
@@ -689,12 +764,42 @@ function openXls(id,side){
   ov.addEventListener("mousedown",e=>{if(e.target===ov)closeOv("ovXls");});
 }
 
-function triggerUpload(id){
-  const inp=$("#upOfis");inp.value="";
-  inp.onchange=async e=>{const f=e.target.files[0];if(!f)return;
-    try{const meta=await parseExcel(f);await DB.update(id,{ofisExcel:meta,ofisAt:Date.now()});reopen(id);toast("İmalat dosyası eklendi");}
-    catch(err){toast(""+(err.message||err.code),"err");}};
+/* Çoklu dosya yükleme — hem şantiye hem ofis tarafı için.
+   Eski tek-dosya kayıtları otomatik listeye taşınır (veri kaybı olmaz). */
+function triggerUpload(id,side){
+  const inp=$(side==="santiye"?"#upSantiye":"#upOfis"); if(!inp)return; inp.value="";
+  inp.onchange=async e=>{
+    const files=[...e.target.files]; if(!files.length)return;
+    const r=DB.get(id); if(!r)return;
+    const arr=[...filesOf(r,side)];
+    let total=sumBytes(r), added=0;
+    for(const f of files){
+      try{
+        const meta=await parseExcel(f);
+        if(arr.some(x=>x.name===meta.name)){ toast(meta.name+" zaten ekli","err"); continue; }
+        if(total+meta.size>MAX_TOTAL){ toast("Toplam dosya sınırı aşıldı (en fazla 550 KB)","err"); break; }
+        arr.push(meta); total+=meta.size; added++;
+      }catch(err){ toast(f.name+": "+(err.message||"okunamadı"),"err"); }
+    }
+    if(!added)return;
+    const patch = side==="santiye"
+      ? {santiyeExcels:arr, santiyeExcel:null}
+      : {ofisExcels:arr, ofisExcel:null, ofisAt:r.ofisAt||Date.now()};
+    try{ await DB.update(id,patch); reopen(id); toast(added+" dosya eklendi"); }
+    catch(err){ toast("Kaydedilemedi: "+(err.code||err.message),"err"); }
+  };
   inp.click();
+}
+/* Tek bir dosyayı kaldır */
+async function removeFile(id,side,i){
+  if(!confirm("Bu dosya kaldırılsın mı?"))return;
+  const r=DB.get(id); if(!r)return;
+  const arr=[...filesOf(r,side)]; arr.splice(i,1);
+  const patch = side==="santiye"
+    ? {santiyeExcels:arr, santiyeExcel:null}
+    : {ofisExcels:arr, ofisExcel:null, ofisAt:arr.length?(r.ofisAt||Date.now()):null};
+  try{ await DB.update(id,patch); reopen(id); toast("Dosya kaldırıldı"); }
+  catch(err){ toast("Hata: "+(err.code||err.message),"err"); }
 }
 async function setTeslim(id){const d=$("#teslimDate").value;if(!d){toast("Teslim tarihi seçin","err");return;}
   try{await DB.update(id,{teslimTarihi:d,imalatNot:$("#teslimNot").value.trim()||null,imalatAt:Date.now()});reopen(id);toast("Teslim tarihi kaydedildi");}catch(e){toast("Hata: "+(e.code||e.message),"err");}}
@@ -724,19 +829,12 @@ async function addNote(id){
 async function delRequest(id){if(!confirm("Bu ilave talebi kalıcı olarak silinsin mi?"))return;
   try{await DB.remove(id);closeOv("ovDetail");toast("Talep silindi");}catch(e){toast("Silinemedi: "+(e.code||e.message),"err");}}
 
-function wireDrop(zone,input,onFile){
+function wireDrop(zone,input,onFiles){
   zone.onclick=()=>input.click();
-  input.onchange=e=>{if(e.target.files[0])onFile(e.target.files[0]);};
+  input.onchange=e=>{ if(e.target.files.length)onFiles([...e.target.files]); input.value=""; };
   ["dragover","dragenter"].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();zone.classList.add("drag");}));
   ["dragleave","drop"].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();zone.classList.remove("drag");}));
-  zone.addEventListener("drop",e=>{const f=e.dataTransfer.files[0];if(f)onFile(f);});
-}
-function renderFilePill(sel,x,onRemove){
-  const box=$(sel);if(!box)return;if(!x){box.innerHTML="";return;}
-  box.innerHTML=`<div class="filepill"><div class="xls">XLS</div>
-    <div class="meta"><div class="fn">${esc(x.name)}</div><div class="fs">${x.totalRows} satır · ${fmtSize(x.size)}</div></div>
-    <button class="rm" title="Kaldır"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>`;
-  box.querySelector(".rm").onclick=onRemove;
+  zone.addEventListener("drop",e=>{ if(e.dataTransfer.files.length)onFiles([...e.dataTransfer.files]); });
 }
 
 function closeOv(id){const o=$("#"+id);if(o)o.remove();}
