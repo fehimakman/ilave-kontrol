@@ -10,6 +10,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <!-- Word (.docx) önizleme -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<!-- Eski .doc (97-2003) metin çıkarımı için -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/js-cfb/1.2.1/cfb.min.js"></script>
 <style>
 :root{
   --ink:#161A20; --ink-soft:#5A6470; --ink-faint:#8B95A1;
@@ -223,6 +225,7 @@ details.prev[open] summary::before{transform:rotate(90deg)}
 .wordprev p{margin:0 0 10px}
 .wordprev table{border-collapse:collapse;margin:10px 0}
 .wordprev td,.wordprev th{border:1px solid var(--line);padding:5px 9px}
+.wordprev .docnote{background:var(--warn-bg);color:#7a5a06;border-radius:7px;padding:8px 12px;margin-bottom:12px;font-size:12.5px;white-space:normal}
 table.xls{border-collapse:collapse;width:100%;font-size:12px;font-family:var(--mono)}
 table.xls th,table.xls td{border-bottom:1px solid var(--line-soft);border-right:1px solid var(--line-soft);padding:7px 10px;text-align:left;white-space:nowrap}
 table.xls thead th{position:sticky;top:0;background:var(--canvas);z-index:1;font-weight:700;color:var(--ink)}
@@ -853,17 +856,79 @@ function openPrev(id,side,i){
   if(k==="pdf"){ const f=$("#pdfFrame"); if(f) f.src=URL.createObjectURL(b64ToBlob(x)); }
   if(k==="word") renderWordPreview(x);
 }
-/* Word (.docx) -> okunabilir metin. Eski .doc veya kütüphane yoksa indir öner. */
+/* Word önizleme: .docx tam biçimli (mammoth), .doc metin çıkarımı (CFB + sweep). */
 async function renderWordPreview(x){
   const box=$("#wordPrev"); if(!box) return;
   const ext=extOf(x.name);
-  if(ext!=="docx"){ box.innerHTML="Bu eski Word (.doc) biçiminde; önizleme yapılamıyor. <b>İndir</b> ile açabilirsiniz."; return; }
-  if(typeof mammoth==="undefined"){ box.innerHTML="Önizleme aracı yüklenemedi. <b>İndir</b> ile açabilirsiniz."; return; }
+  const bin=atob(x.b64),buf=new Uint8Array(bin.length);for(let j=0;j<bin.length;j++)buf[j]=bin.charCodeAt(j);
+
+  if(ext==="docx"){
+    if(typeof mammoth==="undefined"){ box.innerHTML="Önizleme aracı yüklenemedi. <b>İndir</b> ile açın."; return; }
+    try{
+      const out=await mammoth.convertToHtml({arrayBuffer:buf.buffer});
+      box.innerHTML = out.value && out.value.trim() ? out.value : "Belge boş görünüyor. <b>İndir</b> ile açın.";
+    }catch(e){ box.innerHTML="Önizleme oluşturulamadı. <b>İndir</b> ile açın."; }
+    return;
+  }
+  // eski .doc (97-2003) -> metin çıkar
   try{
-    const bin=atob(x.b64),buf=new Uint8Array(bin.length);for(let j=0;j<bin.length;j++)buf[j]=bin.charCodeAt(j);
-    const out=await mammoth.convertToHtml({arrayBuffer:buf.buffer});
-    box.innerHTML = out.value && out.value.trim() ? out.value : "Belge boş görünüyor. <b>İndir</b> ile açabilirsiniz.";
-  }catch(e){ box.innerHTML="Önizleme oluşturulamadı. <b>İndir</b> ile açabilirsiniz."; }
+    const text=extractDocText(buf);
+    if(text && text.replace(/\s/g,"").length>=3){
+      box.innerHTML=`<div class="docnote">Eski Word (.doc) — yalnızca metin önizlemesi (biçim/resim için <b>İndir</b>).</div>`+
+        `<div style="white-space:pre-wrap">${esc(text)}</div>`;
+    }else{
+      box.innerHTML="Bu .doc dosyasından metin çıkarılamadı. <b>İndir</b> ile Word'de açabilirsiniz.";
+    }
+  }catch(e){ box.innerHTML="Önizleme oluşturulamadı. <b>İndir</b> ile açın."; }
+}
+
+/* Eski .doc'tan okunabilir metin çıkar (kartsız/ücretsiz, biçimsiz). */
+function extractDocText(u8){
+  let stream=u8;
+  try{ // CFB varsa sadece WordDocument akışını al -> çok daha temiz
+    if(typeof CFB!=="undefined"){
+      const cf=CFB.read(u8,{type:"array"});
+      const wd=CFB.find(cf,"WordDocument");
+      if(wd && wd.content && wd.content.length) stream=wd.content.length!==undefined?Uint8Array.from(wd.content):wd.content;
+    }
+  }catch(e){}
+  return sweepDocText(stream);
+}
+const CP1252={0x80:0x20AC,0x82:0x201A,0x83:0x0192,0x84:0x201E,0x85:0x2026,0x86:0x2020,0x87:0x2021,0x88:0x02C6,0x89:0x2030,0x8A:0x0160,0x8B:0x2039,0x8C:0x0152,0x8E:0x017D,0x91:0x2018,0x92:0x2019,0x93:0x201C,0x94:0x201D,0x95:0x2022,0x96:0x2013,0x97:0x2014,0x98:0x02DC,0x99:0x2122,0x9A:0x0161,0x9B:0x203A,0x9C:0x0153,0x9E:0x017E,0x9F:0x0178};
+function mapWordCode(code){
+  if(code===13||code===11||code===12||code===7) return "\n"; // paragraf/satır/hücre sonu
+  if(code===9) return "\t";
+  if(code===30) return "-"; if(code===31||code===0xA0) return " ";
+  if(code<32) return " ";        // diğer kontrol karakterleri -> boşluk
+  if(code>=0x80 && code<=0x9F && CP1252[code]) return String.fromCharCode(CP1252[code]);
+  return String.fromCharCode(code);
+}
+function sweepDocText(u8){
+  const sample=Math.min(u8.length,6000); let nulls=0;
+  for(let i=0;i<sample;i++) if(u8[i]===0)nulls++;
+  const utf16 = nulls > sample*0.20;
+  let s="";
+  if(utf16){ for(let i=0;i+1<u8.length;i+=2){ const code=u8[i]|(u8[i+1]<<8); if(code>0) s+=mapWordCode(code); } }
+  else     { for(let i=0;i<u8.length;i++){ if(u8[i]>0) s+=mapWordCode(u8[i]); } }
+  return cleanDocText(s,utf16);
+}
+function cleanDocText(s,utf16){
+  s=s.replace(/[ \t]+/g," ").replace(/ *\n */g,"\n").replace(/\n{3,}/g,"\n\n");
+  const noise=/^(Root Entry|WordDocument|Data|1Table|0Table|ObjectPool|SummaryInformation|DocumentSummaryInformation|CompObj|Microsoft|MSWordDoc|Word\.Document|Times New Roman|Arial|Calibri|Normal|Default Paragraph)/i;
+  const lines=s.split("\n").map(l=>l.trim()).filter(l=>{
+    if(l.length<2) return false;
+    if(noise.test(l)) return false;
+    if(!/[A-Za-zĞğİıŞşÇçÖöÜü]/.test(l)) return false;
+    const ascii=(l.match(/[\x20-\x7E]/g)||[]).length/l.length;
+    if(utf16){ // UTF-16: Latin/Türkçe harfleri geçerli say, rastgele kod noktalarını ele
+      const good=(l.match(/[\x20-\x7E\u00C0-\u024F]/g)||[]).length/l.length;
+      return good>=0.80 && ascii>=0.20;
+    }
+    // Tek bayt: yüksek baytlar rastgele Latin'e benzediği için ASCII oranını yüksek tut
+    return ascii>=0.72;
+  });
+  const out=[]; for(const l of lines){ if(out[out.length-1]!==l) out.push(l); }
+  return out.join("\n").slice(0,20000);
 }
 
 /* Çoklu dosya yükleme — hem şantiye hem ofis tarafı için.
