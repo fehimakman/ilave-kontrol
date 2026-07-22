@@ -916,22 +916,25 @@ function sweepDocText(u8){
   return cleanDocText(s,utf16);
 }
 function cleanDocText(s,utf16){
+  // Gerçek metin bittikten SONRA gelen OLE/stil/font meta verisini kes.
+  // Bu işaretçiler normal belge metninde asla geçmez -> güvenli sınır.
+  const cut=s.search(/ABCDEFGHIJKLMNOP|Root Entry|Standardschriftart|WW-[A-ZÇĞİÖŞÜ]|MSWordDoc|Microsoft Word-Dok|ObjectPool|\b0Table\b|\b1Table\b/);
+  if(cut>20) s=s.slice(0,cut);
   s=s.replace(/[ \t]+/g," ").replace(/ *\n */g,"\n").replace(/\n{3,}/g,"\n\n");
-  const noise=/^(Root Entry|WordDocument|Data|1Table|0Table|ObjectPool|SummaryInformation|DocumentSummaryInformation|CompObj|Microsoft|MSWordDoc|Word\.Document|Times New Roman|Arial|Calibri|Cambria|Symbol|Wingdings|Normal|Default Paragraph|STYLEREF|HYPERLINK|PAGEREF|TOC \\)/i;
+  const noise=/^(Root Entry|WordDocument|Data|1Table|0Table|ObjectPool|SummaryInformation|DocumentSummaryInformation|CompObj|Microsoft|MSWordDoc|Word\.Document|Times New Roman|Arial|Calibri|Cambria|Symbol|Wingdings|Normal|Default Paragraph|STYLEREF|HYPERLINK|PAGEREF|PICT|Liste Yok|Heading|Caption|Index|Gövde Metni|Table of|Placeholder|Footnote|Endnote|Balloon)/i;
   const wordRe=/[A-Za-zĞğİıŞşÇçÖöÜü]{2,}/;   // en az 2 harfli gerçek kelime
   const lines=s.split("\n").map(l=>{
-    // satır kenarlarındaki harf/rakam olmayan çöpü buda (logo/resim baytı sızıntısı)
     return l.replace(/^[^A-Za-zĞğİıŞşÇçÖöÜü]+/,"").replace(/[^A-Za-zĞğİıŞşÇçÖöÜü0-9.,:%)\]]+$/,"").trim();
   }).filter(l=>{
     if(l.length<2) return false;
     if(noise.test(l)) return false;
-    if(!wordRe.test(l)) return false;               // gerçek kelime yoksa at (saf sembol/binary)
+    if(!wordRe.test(l)) return false;               // gerçek kelime yoksa at
     const ascii=(l.match(/[\x20-\x7E]/g)||[]).length/l.length;
     if(utf16){
       const good=(l.match(/[\x20-\x7E\u00C0-\u024F]/g)||[]).length/l.length;
       return good>=0.85 && ascii>=0.20;
     }
-    return ascii>=0.82;                             // tek bayt: rastgele Latin gürültüsünü ele
+    return ascii>=0.82;
   });
   const out=[]; for(const l of lines){ if(out[out.length-1]!==l) out.push(l); }
   return out.join("\n").slice(0,20000);
