@@ -8,6 +8,8 @@
 <!-- Firebase (bulut veritabanı + dosya deposu) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<!-- Word (.docx) önizleme -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <style>
 :root{
   --ink:#161A20; --ink-soft:#5A6470; --ink-faint:#8B95A1;
@@ -216,6 +218,11 @@ details.prev summary::before{content:"▸";color:var(--ink-faint);transition:.15
 details.prev[open] summary::before{transform:rotate(90deg)}
 .tablewrap{border:1px solid var(--line);border-radius:9px;overflow:auto;max-height:300px;background:#fff}
 .tablewrap.big{max-height:70vh}
+.wordprev{max-height:70vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:20px 24px;background:#fff;font-size:14px;line-height:1.6}
+.wordprev h1,.wordprev h2,.wordprev h3{margin:14px 0 8px}
+.wordprev p{margin:0 0 10px}
+.wordprev table{border-collapse:collapse;margin:10px 0}
+.wordprev td,.wordprev th{border:1px solid var(--line);padding:5px 9px}
 table.xls{border-collapse:collapse;width:100%;font-size:12px;font-family:var(--mono)}
 table.xls th,table.xls td{border-bottom:1px solid var(--line-soft);border-right:1px solid var(--line-soft);padding:7px 10px;text-align:left;white-space:nowrap}
 table.xls thead th{position:sticky;top:0;background:var(--canvas);z-index:1;font-weight:700;color:var(--ink)}
@@ -428,33 +435,101 @@ function toast(msg,type="ok"){
 
 const MAX_XLS   = 400*1024; // tek dosya üst sınırı (~400 KB)
 const MAX_TOTAL = 550*1024; // bir talepteki TÜM dosyaların toplam sınırı (Firestore 1 MB kayıt limiti için)
-function parseExcel(file){
+/* ---------- ÇOKLU FORMAT: Excel · Görsel · Word · PDF ---------- */
+const EXT_EXCEL=["xlsx","xls","csv"], EXT_IMG=["jpg","jpeg","png","webp","gif"], EXT_WORD=["doc","docx"], EXT_PDF=["pdf"];
+function extOf(name){ return (String(name).split(".").pop()||"").toLowerCase(); }
+function kindOf(x){
+  if(x.kind) return x.kind;                 // yeni kayıtlar
+  const e=extOf(x.name);                     // eski kayıtlar (kind yok) -> uzantıdan
+  if(EXT_IMG.includes(e)) return "image";
+  if(EXT_WORD.includes(e)) return "word";
+  if(EXT_PDF.includes(e)) return "pdf";
+  return "excel";
+}
+function fileTag(x){
+  const k=kindOf(x);
+  return k==="image"?{lbl:"IMG",bg:"var(--imalat)"}
+       : k==="word" ?{lbl:"DOC",bg:"var(--ofis)"}
+       : k==="pdf"  ?{lbl:"PDF",bg:"var(--danger)"}
+       :             {lbl:"XLS",bg:"var(--ok)"};
+}
+function fileMeta(x){
+  const k=kindOf(x);
+  if(k==="image") return "Görsel · "+fmtSize(x.size);
+  if(k==="word")  return "Word belgesi · "+fmtSize(x.size);
+  if(k==="pdf")   return "PDF · "+fmtSize(x.size);
+  return (x.totalRows||0)+" satır · "+esc(x.sheetName||"")+" · "+fmtSize(x.size);
+}
+
+function readAB(file){ return new Promise((res,rej)=>{const fr=new FileReader();fr.onload=e=>res(new Uint8Array(e.target.result));fr.onerror=rej;fr.readAsArrayBuffer(file);}); }
+function bytesToB64(data){ let bin="";for(let i=0;i<data.length;i++)bin+=String.fromCharCode(data[i]);return btoa(bin); }
+
+/* Görseli tarayıcıda küçült (fotoğraflar ücretsiz sınıra sığsın diye) */
+function compressImage(file){
   return new Promise((res,rej)=>{
-    if(file.size>MAX_XLS){ rej(new Error("dosya çok büyük (en fazla 400 KB)")); return; }
-    const fr=new FileReader();
-    fr.onload=e=>{try{
-      const data=new Uint8Array(e.target.result);
-      const wb=XLSX.read(data,{type:"array"});
-      const sheetName=wb.SheetNames[0],ws=wb.Sheets[sheetName];
-      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
-      // Bazı Excel dosyalarında biçimlendirme boş satırlara kadar iner ve
-      // sayfa milyonlarca "boş satır" içeriyormuş gibi görünür. Sondaki boşları kırp.
-      let last=rows.length-1;
-      while(last>=0 && rows[last].every(c=>String(c).trim()==="")) last--;
-      const clean=rows.slice(0,last+1);
-      let bin="";for(let i=0;i<data.length;i++)bin+=String.fromCharCode(data[i]);
-      res({name:file.name,size:file.size,sheetName,rowsJson:JSON.stringify(clean.slice(0,60)),totalRows:clean.length,b64:btoa(bin)});
-    }catch(err){rej(err);}};
-    fr.onerror=rej;fr.readAsArrayBuffer(file);
+    const url=URL.createObjectURL(file), img=new Image();
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      const tries=[[1400,0.72],[1100,0.65],[900,0.55],[700,0.5]];
+      let best=null;
+      for(const [maxw,q] of tries){
+        let w=img.width,h=img.height;
+        if(w>maxw){ h=Math.round(h*maxw/w); w=maxw; }
+        const c=document.createElement("canvas");c.width=w;c.height=h;
+        const ctx=c.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
+        const b64=c.toDataURL("image/jpeg",q).split(",")[1];
+        const size=Math.round(b64.length*3/4);
+        best={b64,size};
+        if(size<=MAX_XLS) break;
+      }
+      res(best);
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error("görsel okunamadı"));};
+    img.src=url;
   });
 }
-function downloadExcel(x){
+
+/* Tek dosyayı hazırla — türüne göre işler, Firestore'a yazılacak nesneyi döndürür */
+async function prepareFile(file){
+  const e=extOf(file.name);
+  const kind = EXT_EXCEL.includes(e)?"excel" : EXT_IMG.includes(e)?"image" : EXT_WORD.includes(e)?"word" : EXT_PDF.includes(e)?"pdf" : "other";
+  if(kind==="other") throw new Error("desteklenmeyen tür (.xlsx .xls .csv .jpg .png .doc .docx .pdf)");
+
+  if(kind==="image"){
+    const {b64,size}=await compressImage(file);
+    if(size>MAX_XLS) throw new Error("görsel çok büyük, daha küçük bir foto deneyin");
+    const name=file.name.replace(/\.[^.]+$/,"")+".jpg";  // içerik JPEG olduğu için ismi de .jpg
+    return {name,size,kind,b64};
+  }
+
+  if(file.size>MAX_XLS) throw new Error("dosya çok büyük (en fazla 400 KB)");
+  const data=await readAB(file), b64=bytesToB64(data);
+
+  if(kind==="excel"){
+    const wb=XLSX.read(data,{type:"array"});
+    const sheetName=wb.SheetNames[0],ws=wb.Sheets[sheetName];
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+    let last=rows.length-1; while(last>=0 && rows[last].every(c=>String(c).trim()==="")) last--;
+    const clean=rows.slice(0,last+1);
+    return {name:file.name,size:file.size,kind,sheetName,rowsJson:JSON.stringify(clean.slice(0,60)),totalRows:clean.length,b64};
+  }
+  // word / pdf -> ham baytları sakla
+  return {name:file.name,size:file.size,kind,b64};
+}
+
+function b64ToBlob(x){
   const bin=atob(x.b64),buf=new Uint8Array(bin.length);
   for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i);
-  const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-  const url=URL.createObjectURL(blob),a=el("a");a.href=url;a.download=x.name;a.click();URL.revokeObjectURL(url);
+  const k=kindOf(x);
+  const mime = k==="image"?"image/jpeg" : k==="pdf"?"application/pdf"
+    : k==="word"?"application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  return new Blob([buf],{type:mime});
 }
-function dl(id,side,i){const x=filesOf(DB.get(id),side)[i||0];if(x&&x.b64)downloadExcel(x);}
+function downloadFile(x){
+  const url=URL.createObjectURL(b64ToBlob(x)),a=el("a");a.href=url;a.download=x.name;a.click();URL.revokeObjectURL(url);
+}
+function dl(id,side,i){const x=filesOf(DB.get(id),side)[i||0];if(x&&x.b64)downloadFile(x);}
 
 function setView(v){
   VIEW=v;
@@ -551,12 +626,12 @@ function openNew(){
       </div>
       <div class="field"><label>İlave nedeni <span class="req">*</span></label>
         <textarea id="fNeden" placeholder="İlavenin neden istendiğini açıklayın (eksik dolap, revizyon, müşteri talebi vb.)"></textarea></div>
-      <div class="field"><label>İlave dosyaları (Excel) — birden fazla ekleyebilirsiniz</label>
+      <div class="field"><label>İlave dosyaları — Excel, foto (JPEG/PNG), Word, PDF · birden fazla</label>
         <div id="dropZone" class="drop">
           <svg width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 3v11m0-11l-4 4m4-4l4 4M4 17v3a2 2 0 002 2h14a2 2 0 002-2v-3"/></svg>
-          <div><b>Excel dosyalarını sürükleyin</b> veya tıklayın</div>
-          <div class="hint">.xlsx / .xls — birden fazla dosya seçebilirsiniz</div></div>
-        <input type="file" id="fFile" accept=".xlsx,.xls" multiple class="hidden"><div id="filePreview"></div></div>
+          <div><b>Dosyaları sürükleyin</b> veya tıklayın</div>
+          <div class="hint">Excel · JPEG/PNG · Word · PDF — fotoğraflar otomatik küçültülür</div></div>
+        <input type="file" id="fFile" accept=".xlsx,.xls,.csv,.jpg,.jpeg,.png,.webp,.gif,.doc,.docx,.pdf,image/*" multiple class="hidden"><div id="filePreview"></div></div>
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeOv('ovNew')">Vazgeç</button>
       <button class="btn btn-santiye" onclick="saveNew()">Talebi Oluştur</button></div>
@@ -566,7 +641,7 @@ function openNew(){
   wireDrop($("#dropZone"),$("#fFile"),async files=>{
     for(const f of files){
       try{
-        const meta=await parseExcel(f);
+        const meta=await prepareFile(f);
         if(newFiles.some(x=>x.meta.name===meta.name)){ toast(meta.name+" zaten eklendi","err"); continue; }
         const t=newFiles.reduce((s,x)=>s+x.meta.size,0)+meta.size;
         if(t>MAX_TOTAL){ toast("Toplam dosya boyutu sınırı aşıldı (en fazla 550 KB)","err"); continue; }
@@ -578,9 +653,9 @@ function openNew(){
 }
 function renderNewFiles(){
   const box=$("#filePreview"); if(!box) return;
-  box.innerHTML=newFiles.map((x,i)=>`<div class="filepill"><div class="xls">XLS</div>
-    <div class="meta"><div class="fn">${esc(x.meta.name)}</div><div class="fs">${x.meta.totalRows} satır · ${fmtSize(x.meta.size)}</div></div>
-    <button class="rm" data-i="${i}" title="Kaldır"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>`).join("");
+  box.innerHTML=newFiles.map((x,i)=>{const tg=fileTag(x.meta);return `<div class="filepill"><div class="xls" style="background:${tg.bg}">${tg.lbl}</div>
+    <div class="meta"><div class="fn">${esc(x.meta.name)}</div><div class="fs">${fileMeta(x.meta)}</div></div>
+    <button class="rm" data-i="${i}" title="Kaldır"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>`;}).join("");
   box.querySelectorAll(".rm").forEach(b=>b.onclick=()=>{ newFiles.splice(+b.dataset.i,1); renderNewFiles(); });
 }
 async function saveNew(){
@@ -711,25 +786,25 @@ function sideFilesBlock(r,side){
   const color = side==="santiye"?"var(--santiye)":"var(--ofis)";
   const btnCls = side==="santiye"?"btn-santiye":"btn-ofis";
   const inpId  = side==="santiye"?"upSantiye":"upOfis";
-  const inp = `<input type="file" id="${inpId}" accept=".xlsx,.xls" multiple class="hidden">`;
+  const inp = `<input type="file" id="${inpId}" accept=".xlsx,.xls,.csv,.jpg,.jpeg,.png,.webp,.gif,.doc,.docx,.pdf,image/*" multiple class="hidden">`;
 
   if(!files.length){
     const msg = side==="ofis"
-      ? `Bu talep (<b>${esc(id)} · ${esc(r.santiye)}</b>) için imalat Excel'ini yükleyin. Birden fazla dosya seçebilirsiniz.`
-      : `Bu talebe ait Excel dosyası eklenmedi. Birden fazla dosya seçebilirsiniz.`;
+      ? `Bu talep (<b>${esc(id)} · ${esc(r.santiye)}</b>) için imalat dosyalarını yükleyin (Excel, foto, Word, PDF). Birden fazla seçebilirsiniz.`
+      : `Bu talebe ait dosya eklenmedi (Excel, foto, Word, PDF). Birden fazla seçebilirsiniz.`;
     return `<div class="stage-act${side==="santiye"?" santiye":""}"><p>${msg}</p>
-      <button class="btn ${btnCls} btn-sm" onclick="triggerUpload('${id}','${side}')">${side==="ofis"?"İmalat Excel Ekle":"Excel Ekle"}</button>${inp}</div>`;
+      <button class="btn ${btnCls} btn-sm" onclick="triggerUpload('${id}','${side}')">${side==="ofis"?"İmalat Dosyası Ekle":"Dosya Ekle"}</button>${inp}</div>`;
   }
-  const list = files.map((x,i)=>`<div class="filecard" style="margin-bottom:8px">
-    <div class="filecard-row"><div class="xls">XLS</div>
-      <div class="meta"><div class="fn">${esc(x.name)}</div><div class="fs">${x.totalRows} satır · ${esc(x.sheetName)} · ${fmtSize(x.size)}</div></div>
-      <button class="btn btn-sm" onclick="openXls('${id}','${side}',${i})">
+  const list = files.map((x,i)=>{const tg=fileTag(x);return `<div class="filecard" style="margin-bottom:8px">
+    <div class="filecard-row"><div class="xls" style="background:${tg.bg}">${tg.lbl}</div>
+      <div class="meta"><div class="fn">${esc(x.name)}</div><div class="fs">${fileMeta(x)}</div></div>
+      <button class="btn btn-sm" onclick="openPrev('${id}','${side}',${i})">
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 7s2.5-4.5 6-4.5S13 7 13 7s-2.5 4.5-6 4.5S1 7 1 7z"/><circle cx="7" cy="7" r="1.8"/></svg>Önizle</button>
       <button class="btn btn-sm" style="color:${color}" onclick="dl('${id}','${side}',${i})">
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v8m0 0L4 7m3 3l3-3M2 12h10"/></svg>İndir</button>
       <button class="iconbtn" title="Bu dosyayı kaldır" onclick="removeFile('${id}','${side}',${i})">
         <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l7 7M10 3l-7 7"/></svg></button>
-    </div></div>`).join("");
+    </div></div>`;}).join("");
   return list+`<div style="margin-top:4px"><button class="btn ${btnCls} btn-sm" onclick="triggerUpload('${id}','${side}')">
       <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6.5 2v9M2 6.5h9"/></svg>Dosya Ekle</button>${inp}</div>`;
 }
@@ -745,23 +820,50 @@ function xlsTable(x,big){
   body.forEach((row,i)=>{h+=`<tr><td class='rownum'>${i+2}</td>`;for(let c=0;c<cols;c++)h+=`<td>${esc(row[c])}</td>`;h+="</tr>";});
   h+="</tbody></table></div>";return h;
 }
-function openXls(id,side,i){
+function openPrev(id,side,i){
   const x=filesOf(DB.get(id),side)[i||0];if(!x)return;
-  const color=side==="santiye"?"var(--santiye)":"var(--ofis)";
-  const shown=Math.min(x.totalRows>0?x.totalRows-1:0,199);
+  const k=kindOf(x), color=side==="santiye"?"var(--santiye)":"var(--ofis)";
+  let sub="", body="";
+  if(k==="excel"){
+    sub=`${x.totalRows} satır · ${esc(x.sheetName)} · ${fmtSize(x.size)}${x.totalRows-1>59?" · ilk 60 satır önizleme (tamamı İndir'de)":""}`;
+    body=xlsTable(x,true);
+  }else if(k==="image"){
+    sub="Görsel · "+fmtSize(x.size);
+    body=`<div style="text-align:center;background:var(--canvas);border-radius:10px;padding:10px"><img src="data:image/jpeg;base64,${x.b64}" style="max-width:100%;max-height:70vh;border-radius:6px"></div>`;
+  }else if(k==="pdf"){
+    sub="PDF · "+fmtSize(x.size);
+    body=`<iframe id="pdfFrame" style="width:100%;height:70vh;border:1px solid var(--line);border-radius:8px"></iframe>`;
+  }else{ // word
+    sub="Word belgesi · "+fmtSize(x.size);
+    body=`<div id="wordPrev" class="wordprev">Önizleme yükleniyor…</div>`;
+  }
   const ov=el("div","overlay");ov.id="ovXls";
   ov.innerHTML=`<div class="modal wide">
     <div class="modal-head">
       <div style="flex:1;min-width:0"><h2 style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.name)}</h2>
-        <div class="sub">${x.totalRows} satır · ${esc(x.sheetName)} · ${fmtSize(x.size)}${x.totalRows-1>59?" · ilk 60 satır önizleme (tamamı İndir'de)":""}</div></div>
+        <div class="sub">${sub}</div></div>
       <button class="btn btn-sm" style="color:${color}" onclick="dl('${id}','${side}',${i||0})">
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v8m0 0L4 7m3 3l3-3M2 12h10"/></svg>İndir</button>
       <button class="iconbtn" onclick="closeOv('ovXls')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
     </div>
-    <div style="padding:18px 22px 22px">${xlsTable(x,true)}</div>
+    <div style="padding:18px 22px 22px">${body}</div>
   </div>`;
   document.body.appendChild(ov);
   ov.addEventListener("mousedown",e=>{if(e.target===ov)closeOv("ovXls");});
+  if(k==="pdf"){ const f=$("#pdfFrame"); if(f) f.src=URL.createObjectURL(b64ToBlob(x)); }
+  if(k==="word") renderWordPreview(x);
+}
+/* Word (.docx) -> okunabilir metin. Eski .doc veya kütüphane yoksa indir öner. */
+async function renderWordPreview(x){
+  const box=$("#wordPrev"); if(!box) return;
+  const ext=extOf(x.name);
+  if(ext!=="docx"){ box.innerHTML="Bu eski Word (.doc) biçiminde; önizleme yapılamıyor. <b>İndir</b> ile açabilirsiniz."; return; }
+  if(typeof mammoth==="undefined"){ box.innerHTML="Önizleme aracı yüklenemedi. <b>İndir</b> ile açabilirsiniz."; return; }
+  try{
+    const bin=atob(x.b64),buf=new Uint8Array(bin.length);for(let j=0;j<bin.length;j++)buf[j]=bin.charCodeAt(j);
+    const out=await mammoth.convertToHtml({arrayBuffer:buf.buffer});
+    box.innerHTML = out.value && out.value.trim() ? out.value : "Belge boş görünüyor. <b>İndir</b> ile açabilirsiniz.";
+  }catch(e){ box.innerHTML="Önizleme oluşturulamadı. <b>İndir</b> ile açabilirsiniz."; }
 }
 
 /* Çoklu dosya yükleme — hem şantiye hem ofis tarafı için.
@@ -775,7 +877,7 @@ function triggerUpload(id,side){
     let total=sumBytes(r), added=0;
     for(const f of files){
       try{
-        const meta=await parseExcel(f);
+        const meta=await prepareFile(f);
         if(arr.some(x=>x.name===meta.name)){ toast(meta.name+" zaten ekli","err"); continue; }
         if(total+meta.size>MAX_TOTAL){ toast("Toplam dosya sınırı aşıldı (en fazla 550 KB)","err"); break; }
         arr.push(meta); total+=meta.size; added++;
