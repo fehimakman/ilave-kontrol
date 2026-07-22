@@ -225,6 +225,7 @@ details.prev[open] summary::before{transform:rotate(90deg)}
 .wordprev p{margin:0 0 10px}
 .wordprev table{border-collapse:collapse;margin:10px 0}
 .wordprev td,.wordprev th{border:1px solid var(--line);padding:5px 9px}
+.wordprev img{max-width:100%;height:auto;border-radius:6px;margin:8px 0;border:1px solid var(--line-soft)}
 .wordprev .docnote{background:var(--warn-bg);color:#7a5a06;border-radius:7px;padding:8px 12px;margin-bottom:12px;font-size:12.5px;white-space:normal}
 table.xls{border-collapse:collapse;width:100%;font-size:12px;font-family:var(--mono)}
 table.xls th,table.xls td{border-bottom:1px solid var(--line-soft);border-right:1px solid var(--line-soft);padding:7px 10px;text-align:left;white-space:nowrap}
@@ -865,7 +866,9 @@ async function renderWordPreview(x){
   if(ext==="docx"){
     if(typeof mammoth==="undefined"){ box.innerHTML="Önizleme aracı yüklenemedi. <b>İndir</b> ile açın."; return; }
     try{
-      const out=await mammoth.convertToHtml({arrayBuffer:buf.buffer});
+      // Resimleri (logo vb.) HTML'e gömerek göster
+      const opts={convertImage: mammoth.images.imgElement(img=>img.read("base64").then(d=>({src:"data:"+img.contentType+";base64,"+d})))};
+      const out=await mammoth.convertToHtml({arrayBuffer:buf.buffer}, opts);
       box.innerHTML = out.value && out.value.trim() ? out.value : "Belge boş görünüyor. <b>İndir</b> ile açın.";
     }catch(e){ box.innerHTML="Önizleme oluşturulamadı. <b>İndir</b> ile açın."; }
     return;
@@ -874,10 +877,10 @@ async function renderWordPreview(x){
   try{
     const text=extractDocText(buf);
     if(text && text.replace(/\s/g,"").length>=3){
-      box.innerHTML=`<div class="docnote">Eski Word (.doc) — yalnızca metin önizlemesi (biçim/resim için <b>İndir</b>).</div>`+
+      box.innerHTML=`<div class="docnote">Eski Word (.doc) — yalnızca <b>metin</b> önizlemesi. Logo, resim ve düzen görünmez; bunun için dosyayı <b>PDF</b> veya <b>.docx</b> olarak yükleyin ya da <b>İndir</b> deyin.</div>`+
         `<div style="white-space:pre-wrap">${esc(text)}</div>`;
     }else{
-      box.innerHTML="Bu .doc dosyasından metin çıkarılamadı. <b>İndir</b> ile Word'de açabilirsiniz.";
+      box.innerHTML="Bu .doc dosyasından metin çıkarılamadı (çoğunlukla resim/tablo olabilir). Logo ve düzen için <b>PDF</b> veya <b>.docx</b> olarak yükleyin ya da <b>İndir</b> ile Word'de açın.";
     }
   }catch(e){ box.innerHTML="Önizleme oluşturulamadı. <b>İndir</b> ile açın."; }
 }
@@ -914,18 +917,21 @@ function sweepDocText(u8){
 }
 function cleanDocText(s,utf16){
   s=s.replace(/[ \t]+/g," ").replace(/ *\n */g,"\n").replace(/\n{3,}/g,"\n\n");
-  const noise=/^(Root Entry|WordDocument|Data|1Table|0Table|ObjectPool|SummaryInformation|DocumentSummaryInformation|CompObj|Microsoft|MSWordDoc|Word\.Document|Times New Roman|Arial|Calibri|Normal|Default Paragraph)/i;
-  const lines=s.split("\n").map(l=>l.trim()).filter(l=>{
+  const noise=/^(Root Entry|WordDocument|Data|1Table|0Table|ObjectPool|SummaryInformation|DocumentSummaryInformation|CompObj|Microsoft|MSWordDoc|Word\.Document|Times New Roman|Arial|Calibri|Cambria|Symbol|Wingdings|Normal|Default Paragraph|STYLEREF|HYPERLINK|PAGEREF|TOC \\)/i;
+  const wordRe=/[A-Za-zĞğİıŞşÇçÖöÜü]{2,}/;   // en az 2 harfli gerçek kelime
+  const lines=s.split("\n").map(l=>{
+    // satır kenarlarındaki harf/rakam olmayan çöpü buda (logo/resim baytı sızıntısı)
+    return l.replace(/^[^A-Za-zĞğİıŞşÇçÖöÜü]+/,"").replace(/[^A-Za-zĞğİıŞşÇçÖöÜü0-9.,:%)\]]+$/,"").trim();
+  }).filter(l=>{
     if(l.length<2) return false;
     if(noise.test(l)) return false;
-    if(!/[A-Za-zĞğİıŞşÇçÖöÜü]/.test(l)) return false;
+    if(!wordRe.test(l)) return false;               // gerçek kelime yoksa at (saf sembol/binary)
     const ascii=(l.match(/[\x20-\x7E]/g)||[]).length/l.length;
-    if(utf16){ // UTF-16: Latin/Türkçe harfleri geçerli say, rastgele kod noktalarını ele
+    if(utf16){
       const good=(l.match(/[\x20-\x7E\u00C0-\u024F]/g)||[]).length/l.length;
-      return good>=0.80 && ascii>=0.20;
+      return good>=0.85 && ascii>=0.20;
     }
-    // Tek bayt: yüksek baytlar rastgele Latin'e benzediği için ASCII oranını yüksek tut
-    return ascii>=0.72;
+    return ascii>=0.82;                             // tek bayt: rastgele Latin gürültüsünü ele
   });
   const out=[]; for(const l of lines){ if(out[out.length-1]!==l) out.push(l); }
   return out.join("\n").slice(0,20000);
