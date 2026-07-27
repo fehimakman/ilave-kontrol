@@ -261,6 +261,43 @@ table.xls .rownum{background:#FAFBFC;color:var(--ink-faint);text-align:right;pos
 .toast.ok .i{color:#6ee7b7}.toast.err .i{color:#fca5a5}
 .hidden{display:none!important}
 
+/* ---------- ŞANTİYE ADI: otomatik tamamlama + benzerlik uyarısı ---------- */
+.site-wrap{position:relative}
+.site-menu{position:absolute;left:0;right:0;top:calc(100% + 5px);background:#fff;border:1px solid var(--line);border-radius:9px;box-shadow:var(--shadow);z-index:85;max-height:230px;overflow:auto;padding:4px}
+.site-menu button{display:flex;width:100%;align-items:center;gap:9px;border:0;background:transparent;text-align:left;padding:8px 10px;border-radius:7px;font-size:13px;color:var(--ink)}
+.site-menu button:hover{background:var(--canvas)}
+.site-menu .cnt{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);white-space:nowrap}
+.site-hint{margin-top:7px;font-size:12.5px}
+.site-hint .ok{color:#1e6046;background:var(--ok-bg);border-radius:7px;padding:7px 10px;display:block}
+.site-hint .neu{color:var(--ink-faint);padding:2px 2px;display:block}
+.site-hint .warn{background:var(--warn-bg);border:1px solid #e6d59a;color:#7a5a06;border-radius:8px;padding:9px 11px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;line-height:1.45}
+.site-hint .warn button{border:1px solid #d8c489;background:#fff;color:#7a5a06;border-radius:7px;padding:5px 10px;font-size:12px;font-weight:700}
+.site-hint .warn button:hover{background:#fffaf0}
+
+/* ---------- ŞANTİYE YÖNETİMİ ---------- */
+.sect-title{font-family:var(--mono);font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-faint);font-weight:700;margin:0 0 9px}
+.sitelist{display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow:auto;padding-right:2px}
+.siteitem{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:10px;padding:11px 13px;background:#fff;cursor:pointer;margin:0}
+.siteitem.sel{border-color:var(--ofis);background:var(--ofis-bg)}
+.siteitem input[type=checkbox],.siteitem input[type=radio]{width:16px;height:16px;accent-color:var(--ofis);flex-shrink:0}
+.siteitem .nm{flex:1;min-width:0}
+.siteitem .nm b{font-size:13.5px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.siteitem .nm .vr{font-size:11px;color:var(--ink-faint);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.siteitem .cn{font-family:var(--mono);font-size:11px;color:var(--ink-soft);background:var(--canvas);padding:3px 9px;border-radius:20px;white-space:nowrap}
+.simcard{border:1px solid #e6d59a;background:var(--warn-bg);border-radius:10px;padding:11px 13px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.simcard .pair{flex:1;min-width:190px;font-size:13px;color:#7a5a06;line-height:1.5}
+.simcard .pct{font-family:var(--mono);font-size:11px;color:#7a5a06;background:#fff;border-radius:20px;padding:3px 9px}
+
+/* ---------- METİN GİRİŞİ ---------- */
+.textentry{white-space:pre-wrap;word-break:break-word;font-size:13.5px;line-height:1.65;background:#fff;border:1px solid var(--line);border-radius:9px;padding:16px 18px;max-height:62vh;overflow:auto}
+.textentry.mono{font-family:var(--mono);font-size:12.5px}
+.btnrow{display:flex;gap:9px;justify-content:center;flex-wrap:wrap}
+.editform{background:var(--canvas);border:1px solid var(--line-soft);border-radius:11px;padding:16px 16px 14px;margin-bottom:12px}
+.editform .field:last-of-type{margin-bottom:14px}
+.editform .foot{display:flex;gap:9px;justify-content:flex-end}
+.mini-edit{font-size:11.5px;font-weight:700;border:1px solid var(--line);background:#fff;border-radius:7px;padding:5px 10px;color:var(--ink-soft)}
+.mini-edit:hover{border-color:var(--ink-faint);color:var(--ink)}
+
 @media(max-width:900px){
   .kpis{grid-template-columns:repeat(2,1fr)}
   .list-head{display:none}
@@ -312,6 +349,9 @@ table.xls .rownum{background:#FAFBFC;color:var(--ink-faint);text-align:right;pos
       <option value="wait_imalat">İmalat bekleniyor</option>
       <option value="planned">Teslim planlandı</option>
     </select>
+    <button class="btn" id="sitesBtn" title="Aynı şantiyenin farklı yazımlarını tek isimde birleştir">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M2 13V6l6-4 6 4v7"/><path d="M6 13V9h4v4"/></svg>Şantiyeler
+    </button>
     <button class="btn btn-santiye" id="newBtn">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 3v10M3 8h10"/></svg>Yeni İlave Talebi
     </button>
@@ -416,6 +456,139 @@ function sumBytes(r){
 }
 try{lastNoteName=localStorage.getItem("ik.noteName")||"";}catch(e){}
 
+/* ================================================================
+   ŞANTİYE ADI NORMALİZASYONU  (madde 1)
+   "INVEST MASLAK KORU" · "invest maslak koru" · "Invest  Maslak-Koru"
+   -> hepsi AYNI anahtara (santiyeKey) düşer, filtrede TEK kalem olur.
+   Yazım gerçekten farklıysa ("... vadi" gibi ek kelime) otomatik
+   birleştirmeyiz; benzerlik uyarısı gösterip kararı kullanıcıya bırakırız.
+   Eski kayıtlarda santiyeKey yok -> keyOf() anında hesaplar (migrasyon gerekmez).
+   ================================================================ */
+const TRUP={"Ç":"C","Ğ":"G","İ":"I","Ş":"S","Ö":"O","Ü":"U","Â":"A","Î":"I","Û":"U"};
+function normKey(s){
+  return String(s??"").toLocaleUpperCase("tr-TR")
+    .replace(/[ÇĞİŞÖÜÂÎÛ]/g,m=>TRUP[m]||m)
+    .replace(/[^A-Z0-9]+/g," ").trim();
+}
+function keyOf(r){ return r?(r.santiyeKey||normKey(r.santiye)):""; }
+function cleanName(s){ return String(s??"").trim().replace(/\s+/g," "); }
+
+/* Levenshtein — yazım hatalarını (MASLAK/MASLK) yakalamak için */
+function lev(a,b){
+  if(a===b) return 0;
+  const m=a.length,n=b.length; if(!m)return n; if(!n)return m;
+  let prev=Array.from({length:n+1},(_,i)=>i), cur=new Array(n+1);
+  for(let i=1;i<=m;i++){
+    cur[0]=i;
+    for(let j=1;j<=n;j++)
+      cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));
+    const t=prev; prev=cur; cur=t;
+  }
+  return prev[n];
+}
+/* İki şantiye anahtarının benzerliği (0..1) — kelime bazlı, sıradan bağımsız */
+function siteSim(k1,k2){
+  if(!k1||!k2) return 0;
+  if(k1===k2) return 1;
+  const A=k1.split(" ").filter(Boolean), B=k2.split(" ").filter(Boolean);
+  if(!A.length||!B.length) return 0;
+  const used=new Array(B.length).fill(false);
+  let inter=0;
+  A.forEach(a=>{
+    let hit=-1;
+    for(let i=0;i<B.length;i++){
+      if(used[i]) continue;
+      const b=B[i];
+      if(a===b){ hit=i; break; }
+      const L=Math.max(a.length,b.length);
+      if(L>=4 && lev(a,b)<=(L>=8?2:1) && hit<0) hit=i;   // yazım hatası toleransı
+    }
+    if(hit>=0){ used[hit]=true; inter++; }
+  });
+  if(!inter) return 0;
+  const contain=inter/Math.min(A.length,B.length);        // biri diğerini kapsıyor mu
+  const jac=inter/(A.length+B.length-inter);              // genel örtüşme
+  let skor=contain*0.7+jac*0.3;
+  /* AYIRT EDİCİ EK: "A BLOK" ile "B BLOK", "SITE 1" ile "SITE 2" AYNI DEĞİLDİR.
+     Eşleşmeyen kelimelerden biri tek/iki harf ya da sayı ise benzerliği düşür. */
+  const artan=[...A.filter(a=>!B.includes(a)), ...B.filter((b,i)=>!used[i]&&!A.includes(b))];
+  if(artan.some(t=>t.length<=2||/^[0-9]+$/.test(t))) skor*=0.45;
+  return skor;
+}
+const SIM_ESIK=0.62;   // bu oranın üstü "aynı olabilir" sayılır (öneri, otomatik değil)
+
+/* Kayıtlardan canlı şantiye dizini — ayrı koleksiyon/kural gerektirmez */
+function siteIndex(){
+  const m=new Map();
+  DB.list().forEach(r=>{
+    const k=keyOf(r); if(!k) return;
+    let o=m.get(k);
+    if(!o){ o={key:k,ad:cleanName(r.santiye),count:0,variants:new Map()}; m.set(k,o); }
+    o.count++;
+    const v=cleanName(r.santiye);
+    o.variants.set(v,(o.variants.get(v)||0)+1);
+  });
+  m.forEach(o=>{ let best=o.ad,n=-1; o.variants.forEach((c,v)=>{ if(c>n){n=c;best=v;} }); o.ad=best; });
+  return [...m.values()].sort((a,b)=>a.ad.localeCompare(b.ad,"tr"));
+}
+function siteByKey(k){ return siteIndex().find(s=>s.key===k)||null; }
+/* Yazılan adı mevcut şantiyeye oturt: anahtarı tutuyorsa grubun resmi adını kullan */
+function canonSite(name){
+  const key=normKey(name), g=key?siteIndex().find(s=>s.key===key):null;
+  return { ad: g?g.ad:cleanName(name), key };
+}
+function nearSites(key,excludeKey){
+  return siteIndex()
+    .map(s=>({s,v:siteSim(s.key,key)}))
+    .filter(x=>x.v>=SIM_ESIK && x.s.key!==key && x.s.key!==excludeKey)
+    .sort((a,b)=>b.v-a.v).slice(0,3);
+}
+
+/* Şantiye adı kutusunu akıllı hale getirir: mevcutlardan seçtirir + benzerini uyarır */
+function wireSiteInput(inputId,hintId){
+  const input=$("#"+inputId); if(!input) return;
+  const wrap=input.parentElement;
+  let menu=null;
+  const close=()=>{ if(menu){ menu.remove(); menu=null; } };
+  const paint=()=>{
+    close();
+    const q=normKey(input.value), all=siteIndex();
+    let list = q ? all.filter(s=>s.key.includes(q)||q.includes(s.key)||siteSim(s.key,q)>=0.45) : all;
+    list=list.slice(0,8);
+    if(!list.length) return;
+    menu=el("div","site-menu");
+    menu.innerHTML=list.map(s=>`<button type="button" data-ad="${esc(s.ad)}">${esc(s.ad)}<span class="cnt">${s.count} talep</span></button>`).join("");
+    menu.querySelectorAll("button").forEach(b=>b.onmousedown=ev=>{ ev.preventDefault(); input.value=b.dataset.ad; close(); hint(); });
+    wrap.appendChild(menu);
+  };
+  const hint=()=>{
+    const box=$("#"+hintId); if(!box) return;
+    const raw=cleanName(input.value); box.innerHTML="";
+    if(!raw) return;
+    const key=normKey(raw), all=siteIndex();
+    const exact=all.find(s=>s.key===key);
+    if(exact){
+      box.innerHTML = exact.ad!==raw
+        ? `<span class="ok">✓ Mevcut şantiye ile eşleşti — kayıt <b>${esc(exact.ad)}</b> adı altında toplanacak.</span>`
+        : `<span class="ok">✓ Mevcut şantiye · ${exact.count} talep</span>`;
+      return;
+    }
+    const near=nearSites(key);
+    if(near.length){
+      box.innerHTML=`<div class="warn"><span>⚠︎ Benzer şantiye kayıtlı. <b>Aynı şantiye ise</b> birini seçin:</span>`+
+        near.map(x=>`<button type="button" data-ad="${esc(x.s.ad)}">${esc(x.s.ad)} · %${Math.round(x.v*100)}</button>`).join("")+
+        `<span style="font-size:11.5px;opacity:.85">Gerçekten farklıysa yazdığınız gibi kalır.</span></div>`;
+      box.querySelectorAll("button").forEach(b=>b.onclick=()=>{ input.value=b.dataset.ad; hint(); });
+    }else{
+      box.innerHTML=`<span class="neu">＋ Yeni şantiye olarak açılacak.</span>`;
+    }
+  };
+  input.addEventListener("focus",paint);
+  input.addEventListener("input",()=>{ paint(); hint(); });
+  input.addEventListener("blur",()=>{ setTimeout(()=>{ close(); const c=canonSite(input.value); if(c.key) input.value=c.ad; hint(); },140); });
+  hint();
+}
+
 function statusInfo(r){
   if(r.tamamlandiAt) return {key:"tamamlandi",cls:"b-ok",txt:"Tamamlandı"};
   if(r.teslimTarihi) return {key:"planned",cls:"b-plan",txt:"Teslim: "+fmtShort(r.teslimTarihi)};
@@ -455,10 +628,18 @@ function fileTag(x){
   return k==="image"?{lbl:"IMG",bg:"var(--imalat)"}
        : k==="word" ?{lbl:"DOC",bg:"var(--ofis)"}
        : k==="pdf"  ?{lbl:"PDF",bg:"var(--danger)"}
+       : k==="text" ?{lbl:"MTN",bg:"var(--ink-soft)"}
        :             {lbl:"XLS",bg:"var(--ok)"};
 }
+const byteLen=s=>{ try{ return new TextEncoder().encode(String(s??"")).length; }catch(e){ return String(s??"").length*2; } };
+const isText=x=>kindOf(x)==="text";
 function fileMeta(x){
   const k=kindOf(x);
+  if(k==="text"){
+    const t=String(x.text||"");
+    const sat=t.trim()?t.trim().split(/\n/).length:0;
+    return "Elle girilen metin · "+sat+" satır · "+fmtSize(x.size||byteLen(t));
+  }
   if(k==="image") return "Görsel · "+fmtSize(x.size);
   if(k==="word")  return "Word belgesi · "+fmtSize(x.size);
   if(k==="pdf")   return "PDF · "+fmtSize(x.size);
@@ -531,9 +712,14 @@ function b64ToBlob(x){
   return new Blob([buf],{type:mime});
 }
 function downloadFile(x){
-  const url=URL.createObjectURL(b64ToBlob(x)),a=el("a");a.href=url;a.download=x.name;a.click();URL.revokeObjectURL(url);
+  let blob,name=x.name||"kayit";
+  if(isText(x)){
+    blob=new Blob(["\uFEFF"+String(x.text||"")],{type:"text/plain;charset=utf-8"});
+    if(!/\.txt$/i.test(name)) name+=".txt";
+  }else blob=b64ToBlob(x);
+  const url=URL.createObjectURL(blob),a=el("a");a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);
 }
-function dl(id,side,i){const x=filesOf(DB.get(id),side)[i||0];if(x&&x.b64)downloadFile(x);}
+function dl(id,side,i){const x=filesOf(DB.get(id),side)[i||0];if(x&&(x.b64||isText(x)))downloadFile(x);}
 
 function setView(v){
   VIEW=v;
@@ -553,19 +739,28 @@ function render(){
   $("#cntAktif").textContent=all.filter(r=>!isDone(r)).length;
   $("#cntDone").textContent=all.filter(isDone).length;
 
+  /* Şantiye filtresi ARTIK normalize anahtara göre gruplanır:
+     "INVEST MASLAK KORU" ile "invest maslak koru" tek satırda toplanır. */
   const sel=$("#filterSantiye"),cur=sel.value;
-  const sites=[...new Set(all.map(r=>r.santiye))].sort();
-  sel.innerHTML='<option value="">Tüm şantiyeler</option>'+sites.map(s=>`<option>${esc(s)}</option>`).join("");
-  sel.value=cur;
+  const sites=siteIndex();
+  sel.innerHTML='<option value="">Tüm şantiyeler</option>'+
+    sites.map(s=>`<option value="${esc(s.key)}">${esc(s.ad)} (${s.count})</option>`).join("");
+  sel.value = sites.some(s=>s.key===cur) ? cur : "";
 
-  const q=$("#searchInput").value.trim().toLowerCase(),fS=$("#filterSantiye").value,fD=$("#filterDurum").value;
+  const qRaw=$("#searchInput").value.trim(), q=normKey(qRaw);
+  const fS=$("#filterSantiye").value,fD=$("#filterDurum").value;
   let list=all.filter(r=>{
     const done=isDone(r);
     if(VIEW==="aktif" && done) return false;
     if(VIEW==="tamamlanan" && !done) return false;
-    if(fS && r.santiye!==fS) return false;
+    if(fS && keyOf(r)!==fS) return false;
     if(VIEW==="aktif" && fD && statusInfo(r).key!==fD) return false;
-    if(q && !((r.santiye+" "+r.talepEden+" "+r.neden+" "+r.id).toLowerCase().includes(q))) return false;
+    if(qRaw){
+      const ekler=[...filesOf(r,"santiye"),...filesOf(r,"ofis")]
+        .map(x=>(x.name||"")+" "+(isText(x)?(x.text||""):"")).join(" ");
+      const hay=normKey([r.santiye,r.talepEden,r.neden,r.id,r.imalatNot,r.tamamNot,ekler].join(" "));
+      if(!hay.includes(q)) return false;
+    }
     return true;
   });
 
@@ -625,16 +820,23 @@ function openNew(){
         <div class="field"><label>Talep tarihi <span class="req">*</span></label><input type="date" id="fTarih" value="${today}"></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Şantiye adı <span class="req">*</span></label><input type="text" id="fSantiye" placeholder="Örn: Bahçeşehir Konakları B-Blok" autocomplete="off"></div>
+        <div class="field"><label>Şantiye adı <span class="req">*</span></label>
+          <div class="site-wrap"><input type="text" id="fSantiye" placeholder="Yazmaya başlayın — kayıtlı şantiyeler listelenir" autocomplete="off"></div>
+          <div class="site-hint" id="fSiteHint"></div></div>
         <div class="field"><label>Öncelik</label><select id="fOncelik"><option>Normal</option><option>Acil</option><option>Düşük</option></select></div>
       </div>
       <div class="field"><label>İlave nedeni <span class="req">*</span></label>
         <textarea id="fNeden" placeholder="İlavenin neden istendiğini açıklayın (eksik dolap, revizyon, müşteri talebi vb.)"></textarea></div>
-      <div class="field"><label>İlave dosyaları — Excel, foto (JPEG/PNG), Word, PDF · birden fazla</label>
+      <div class="field"><label>İlave içeriği — dosya <b>veya</b> elle metin girişi</label>
         <div id="dropZone" class="drop">
           <svg width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 3v11m0-11l-4 4m4-4l4 4M4 17v3a2 2 0 002 2h14a2 2 0 002-2v-3"/></svg>
           <div><b>Dosyaları sürükleyin</b> veya tıklayın</div>
           <div class="hint">Excel · JPEG/PNG · Word · PDF — fotoğraflar otomatik küçültülür</div></div>
+        <div style="margin-top:9px">
+          <button type="button" class="btn btn-sm" onclick="openTextComposer({side:'new'})">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M2 12l1-3 7-7 2 2-7 7-3 1z"/></svg>Metin Olarak Yaz</button>
+          <span style="font-size:11.5px;color:var(--ink-faint);margin-left:8px">Dosyanız yoksa ölçü/miktar bilgisini doğrudan buraya yazabilirsiniz.</span>
+        </div>
         <input type="file" id="fFile" accept=".xlsx,.xls,.csv,.jpg,.jpeg,.png,.webp,.gif,.doc,.docx,.pdf,image/*" multiple class="hidden"><div id="filePreview"></div></div>
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeOv('ovNew')">Vazgeç</button>
@@ -642,6 +844,7 @@ function openNew(){
    </div>`;
   document.body.appendChild(ov);
   ov.addEventListener("mousedown",e=>{if(e.target===ov)closeOv("ovNew");});
+  wireSiteInput("fSantiye","fSiteHint");
   wireDrop($("#dropZone"),$("#fFile"),async files=>{
     for(const f of files){
       try{
@@ -659,11 +862,14 @@ function renderNewFiles(){
   const box=$("#filePreview"); if(!box) return;
   box.innerHTML=newFiles.map((x,i)=>{const tg=fileTag(x.meta);return `<div class="filepill"><div class="xls" style="background:${tg.bg}">${tg.lbl}</div>
     <div class="meta"><div class="fn">${esc(x.meta.name)}</div><div class="fs">${fileMeta(x.meta)}</div></div>
+    ${isText(x.meta)?`<button class="mini-edit" data-e="${i}" title="Metni düzenle">Düzenle</button>`:""}
     <button class="rm" data-i="${i}" title="Kaldır"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>`;}).join("");
   box.querySelectorAll(".rm").forEach(b=>b.onclick=()=>{ newFiles.splice(+b.dataset.i,1); renderNewFiles(); });
+  box.querySelectorAll(".mini-edit").forEach(b=>b.onclick=()=>openTextComposer({side:"new",index:+b.dataset.e}));
 }
 async function saveNew(){
-  const talepEden=$("#fEden").value.trim(),santiye=$("#fSantiye").value.trim(),tarih=$("#fTarih").value,neden=$("#fNeden").value.trim();
+  const talepEden=$("#fEden").value.trim(),tarih=$("#fTarih").value,neden=$("#fNeden").value.trim();
+  const c=canonSite($("#fSantiye").value), santiye=c.ad, santiyeKey=c.key;
   if(!talepEden){toast("İlaveyi isteyen kişi gerekli","err");return;}
   if(!santiye){toast("Şantiye adı gerekli","err");return;}
   if(!tarih){toast("Talep tarihi gerekli","err");return;}
@@ -671,7 +877,7 @@ async function saveNew(){
   if(!FIREBASE_READY){toast("Önce Firebase yapılandırılmalı","err");return;}
   const id=newId();
   try{
-    await DB.createWithId(id,{talepEden,santiye,tarih,neden,oncelik:$("#fOncelik").value,
+    await DB.createWithId(id,{talepEden,santiye,santiyeKey,tarih,neden,oncelik:$("#fOncelik").value,
       santiyeExcels:newFiles.map(x=>x.meta),ofisExcels:[],ofisAt:null,teslimTarihi:null,imalatNot:null,imalatAt:null,tamamlandiAt:null,tamamNot:null,notes:[]});
     closeOv("ovNew");toast("İlave talebi oluşturuldu");
   }catch(err){toast("Kaydedilemedi: "+(err.code||err.message),"err");}
@@ -694,15 +900,7 @@ function openDetail(id){
     <div class="flow">
       ${quotaStrip(r)}
       <div class="stage s">
-        <div class="stage-head"><span class="stage-num">1</span><b>Şantiye Talebi</b><span class="st-status">${fmtDate(r.tarih)}${nS?" · "+nS+" dosya":""}</span></div>
-        <div class="info-grid">
-          <div class="cell"><div class="k">İlaveyi isteyen</div><div class="v">${esc(r.talepEden||"—")}</div></div>
-          <div class="cell"><div class="k">Şantiye</div><div class="v">${esc(r.santiye)}</div></div>
-          <div class="cell"><div class="k">Öncelik</div><div class="v">${esc(r.oncelik||"Normal")}</div></div>
-          <div class="cell"><div class="k">Talep no</div><div class="v" style="font-family:var(--mono)">${esc(r.id)}</div></div>
-        </div>
-        <div style="margin-bottom:12px"><div class="k" style="font-size:11px;color:var(--ink-faint);font-weight:600;margin-bottom:4px">İlave nedeni</div><div class="reason-box">${esc(r.neden)||"—"}</div></div>
-        ${sideFilesBlock(r,"santiye")}
+        ${stage1Block(r)}
       </div>
       <div class="flow-link"></div>
 
@@ -736,6 +934,61 @@ function openDetail(id){
   document.body.appendChild(ov);
   ov.addEventListener("mousedown",e=>{if(e.target===ov)closeOv("ovDetail");});
   renderNotes(r);
+  if(EDIT1===r.id){ wireSiteInput("eSantiye","eSiteHint"); const f=$("#eEden"); if(f) f.focus(); }
+}
+
+/* -------- Aşama 1: görüntüle / düzenle  (madde 2) --------
+   Talep bilgileri (isteyen, şantiye, tarih, öncelik, neden) sonradan düzeltilebilir. */
+let EDIT1=null;
+function startEdit1(id){ closeOv("ovDetail"); EDIT1=id; render(); openDetail(id); }
+function cancelEdit1(id){ EDIT1=null; reopen(id); }
+async function saveEdit1(id){
+  const talepEden=cleanName($("#eEden").value), tarih=$("#eTarih").value, neden=$("#eNeden").value.trim();
+  const c=canonSite($("#eSantiye").value);
+  if(!talepEden){toast("İlaveyi isteyen kişi gerekli","err");return;}
+  if(!c.ad){toast("Şantiye adı gerekli","err");return;}
+  if(!tarih){toast("Talep tarihi gerekli","err");return;}
+  if(!neden){toast("İlave nedeni gerekli","err");return;}
+  try{
+    await DB.update(id,{talepEden,santiye:c.ad,santiyeKey:c.key,tarih,neden,oncelik:$("#eOncelik").value});
+    EDIT1=null; reopen(id); toast("Talep bilgileri güncellendi");
+  }catch(e){ toast("Kaydedilemedi: "+(e.code||e.message),"err"); }
+}
+function stage1Block(r){
+  const nS=filesOf(r,"santiye").length;
+  if(EDIT1===r.id){
+    const onc=["Normal","Acil","Düşük"];
+    return `<div class="stage-head"><span class="stage-num">1</span><b>Şantiye Talebi</b><span class="st-status" style="color:var(--santiye)">Düzenleniyor</span></div>
+      <div class="editform">
+        <div class="grid2">
+          <div class="field"><label>İlaveyi isteyen <span class="req">*</span></label><input type="text" id="eEden" autocomplete="off" value="${esc(r.talepEden||"")}"></div>
+          <div class="field"><label>Talep tarihi <span class="req">*</span></label><input type="date" id="eTarih" value="${esc(r.tarih||"")}"></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Şantiye adı <span class="req">*</span></label>
+            <div class="site-wrap"><input type="text" id="eSantiye" autocomplete="off" value="${esc(r.santiye||"")}"></div>
+            <div class="site-hint" id="eSiteHint"></div></div>
+          <div class="field"><label>Öncelik</label><select id="eOncelik">${onc.map(o=>`<option${(r.oncelik||"Normal")===o?" selected":""}>${o}</option>`).join("")}</select></div>
+        </div>
+        <div class="field"><label>İlave nedeni <span class="req">*</span></label><textarea id="eNeden">${esc(r.neden||"")}</textarea></div>
+        <div class="foot">
+          <button class="btn btn-sm btn-ghost" onclick="cancelEdit1('${r.id}')">Vazgeç</button>
+          <button class="btn btn-sm btn-santiye" onclick="saveEdit1('${r.id}')">Değişiklikleri Kaydet</button>
+        </div>
+      </div>
+      ${sideFilesBlock(r,"santiye")}`;
+  }
+  return `<div class="stage-head"><span class="stage-num">1</span><b>Şantiye Talebi</b>
+      <span class="st-status">${fmtDate(r.tarih)}${nS?" · "+nS+" kayıt":""}</span>
+      <button class="mini-edit" style="margin-left:10px" onclick="startEdit1('${r.id}')" title="Talep bilgilerini düzelt">✎ Düzenle</button></div>
+    <div class="info-grid">
+      <div class="cell"><div class="k">İlaveyi isteyen</div><div class="v">${esc(r.talepEden||"—")}</div></div>
+      <div class="cell"><div class="k">Şantiye</div><div class="v">${esc(r.santiye)}</div></div>
+      <div class="cell"><div class="k">Öncelik</div><div class="v">${esc(r.oncelik||"Normal")}</div></div>
+      <div class="cell"><div class="k">Talep no</div><div class="v" style="font-family:var(--mono)">${esc(r.id)}</div></div>
+    </div>
+    <div style="margin-bottom:12px"><div class="k" style="font-size:11px;color:var(--ink-faint);font-weight:600;margin-bottom:4px">İlave nedeni</div><div class="reason-box">${esc(r.neden)||"—"}</div></div>
+    ${sideFilesBlock(r,"santiye")}`;
 }
 
 function imalatStage(r){
@@ -792,25 +1045,99 @@ function sideFilesBlock(r,side){
   const inpId  = side==="santiye"?"upSantiye":"upOfis";
   const inp = `<input type="file" id="${inpId}" accept=".xlsx,.xls,.csv,.jpg,.jpeg,.png,.webp,.gif,.doc,.docx,.pdf,image/*" multiple class="hidden">`;
 
+  const addBtns = `<button class="btn ${btnCls} btn-sm" onclick="triggerUpload('${id}','${side}')">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6.5 2v9M2 6.5h9"/></svg>Dosya Ekle</button>
+    <button class="btn btn-sm" onclick="openTextComposer({id:'${id}',side:'${side}'})">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M2 12l1-3 7-7 2 2-7 7-3 1z"/></svg>Metin Ekle</button>${inp}`;
+
   if(!files.length){
     const msg = side==="ofis"
-      ? `Bu talep (<b>${esc(id)} · ${esc(r.santiye)}</b>) için imalat dosyalarını yükleyin (Excel, foto, Word, PDF). Birden fazla seçebilirsiniz.`
-      : `Bu talebe ait dosya eklenmedi (Excel, foto, Word, PDF). Birden fazla seçebilirsiniz.`;
+      ? `Bu talep (<b>${esc(id)} · ${esc(r.santiye)}</b>) için imalat bilgisini <b>dosya olarak yükleyin</b> (Excel, foto, Word, PDF) <b>veya doğrudan metin olarak yazın</b>.`
+      : `Bu talebe ait içerik eklenmedi. <b>Dosya yükleyebilir</b> (Excel, foto, Word, PDF) <b>veya ölçü/miktar bilgisini elle metin olarak yazabilirsiniz</b>.`;
     return `<div class="stage-act${side==="santiye"?" santiye":""}"><p>${msg}</p>
-      <button class="btn ${btnCls} btn-sm" onclick="triggerUpload('${id}','${side}')">${side==="ofis"?"İmalat Dosyası Ekle":"Dosya Ekle"}</button>${inp}</div>`;
+      <div class="btnrow">${addBtns}</div></div>`;
   }
-  const list = files.map((x,i)=>{const tg=fileTag(x);return `<div class="filecard" style="margin-bottom:8px">
+  const list = files.map((x,i)=>{const tg=fileTag(x),txt=isText(x);return `<div class="filecard" style="margin-bottom:8px">
     <div class="filecard-row"><div class="xls" style="background:${tg.bg}">${tg.lbl}</div>
       <div class="meta"><div class="fn">${esc(x.name)}</div><div class="fs">${fileMeta(x)}</div></div>
       <button class="btn btn-sm" onclick="openPrev('${id}','${side}',${i})">
-        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 7s2.5-4.5 6-4.5S13 7 13 7s-2.5 4.5-6 4.5S1 7 1 7z"/><circle cx="7" cy="7" r="1.8"/></svg>Önizle</button>
-      <button class="btn btn-sm" style="color:${color}" onclick="dl('${id}','${side}',${i})">
-        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v8m0 0L4 7m3 3l3-3M2 12h10"/></svg>İndir</button>
-      <button class="iconbtn" title="Bu dosyayı kaldır" onclick="removeFile('${id}','${side}',${i})">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 7s2.5-4.5 6-4.5S13 7 13 7s-2.5 4.5-6 4.5S1 7 1 7z"/><circle cx="7" cy="7" r="1.8"/></svg>${txt?"Görüntüle":"Önizle"}</button>
+      ${txt?`<button class="btn btn-sm" style="color:${color}" onclick="openTextComposer({id:'${id}',side:'${side}',index:${i}})">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M2 12l1-3 7-7 2 2-7 7-3 1z"/></svg>Düzenle</button>`
+      :`<button class="btn btn-sm" style="color:${color}" onclick="dl('${id}','${side}',${i})">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v8m0 0L4 7m3 3l3-3M2 12h10"/></svg>İndir</button>`}
+      <button class="iconbtn" title="Bu kaydı kaldır" onclick="removeFile('${id}','${side}',${i})">
         <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l7 7M10 3l-7 7"/></svg></button>
     </div></div>`;}).join("");
-  return list+`<div style="margin-top:4px"><button class="btn ${btnCls} btn-sm" onclick="triggerUpload('${id}','${side}')">
-      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6.5 2v9M2 6.5h9"/></svg>Dosya Ekle</button>${inp}</div>`;
+  return list+`<div style="margin-top:4px;display:flex;gap:9px;flex-wrap:wrap">${addBtns}</div>`;
+}
+
+/* ================= METİN OLARAK VERİ GİRİŞİ (madde 3) =================
+   Dosya yerine (veya yanında) elle yazılan kayıtlar. Aynı listede
+   {kind:"text", text:"..."} olarak durur -> mevcut şema bozulmaz.       */
+let TXTCTX=null;
+function uniqName(names,name,skip){
+  let n=name,i=2;
+  while(names.some((v,j)=>j!==skip && v===n)) n=name+" ("+(i++)+")";
+  return n;
+}
+function openTextComposer(ctx){
+  TXTCTX=ctx;
+  let cur={name:"",text:""};
+  if(ctx.index!=null){
+    cur = ctx.side==="new" ? (newFiles[ctx.index]||{}).meta||cur
+                           : filesOf(DB.get(ctx.id),ctx.side)[ctx.index]||cur;
+  }
+  const yer = ctx.side==="ofis" ? "2 · OFİS İMALAT" : "1 · ŞANTİYE TALEBİ";
+  const ov=el("div","overlay top");ov.id="ovTxt";
+  ov.innerHTML=`<div class="modal wide">
+    <div class="modal-head"><h2>${ctx.index!=null?"Metin Kaydını Düzenle":"Metin Olarak Veri Girişi"}</h2>
+      <span class="sub">${yer}</span>
+      <button class="iconbtn" onclick="closeOv('ovTxt')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l8 8M11 3l-8 8"/></svg></button></div>
+    <div class="modal-body">
+      <div class="field"><label>Başlık</label>
+        <input type="text" id="txtName" autocomplete="off" placeholder="${ctx.side==="ofis"?"Örn: İmalat ölçüleri / Kesim notu":"Örn: Eksik dolap ölçüleri"}" value="${esc(cur.name||"")}"></div>
+      <div class="field" style="margin-bottom:6px"><label>İçerik <span class="req">*</span></label>
+        <textarea id="txtBody" style="min-height:250px;font-family:var(--mono);font-size:12.5px;line-height:1.6" placeholder="Ölçü, adet, açıklama… doğrudan buraya yazın.&#10;&#10;Örn:&#10;Alt dolap 60x72  2 adet&#10;Üst dolap 80x72  1 adet">${esc(cur.text||"")}</textarea></div>
+      <div style="font-size:11.5px;color:var(--ink-faint)">Excel'den kopyalayıp yapıştırabilirsiniz — satır ve sütun düzeni korunur. Kayıt, dosyalarla aynı listede görünür ve .txt olarak indirilebilir.</div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeOv('ovTxt')">Vazgeç</button>
+      <button class="btn btn-primary" onclick="saveTextComposer()">${ctx.index!=null?"Güncelle":"Kaydet"}</button></div></div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener("mousedown",e=>{if(e.target===ov)closeOv("ovTxt");});
+  setTimeout(()=>{const t=$("#txtBody");if(t){t.focus();t.setSelectionRange(t.value.length,t.value.length);}},40);
+}
+async function saveTextComposer(){
+  const ctx=TXTCTX; if(!ctx) return;
+  const body=$("#txtBody").value.replace(/[ \t]+$/gm,"").replace(/\s+$/,"");
+  if(!body.trim()){ toast("İçerik boş olamaz","err"); return; }
+  const baslik=cleanName($("#txtName").value) || ("Metin girişi · "+new Date().toLocaleDateString("tr-TR"));
+  const entry={name:baslik,kind:"text",text:body,size:byteLen(body),at:Date.now()};
+
+  if(ctx.side==="new"){
+    const names=newFiles.map(x=>x.meta.name);
+    entry.name=uniqName(names,baslik,ctx.index!=null?ctx.index:-1);
+    const others=newFiles.reduce((s,x,j)=>s+(j===ctx.index?0:(x.meta.size||0)),0);
+    if(others+entry.size>MAX_TOTAL){ toast("Toplam alan sınırı aşıldı (en fazla 550 KB)","err"); return; }
+    if(ctx.index!=null) newFiles[ctx.index]={file:null,meta:entry}; else newFiles.push({file:null,meta:entry});
+    closeOv("ovTxt"); renderNewFiles(); toast(ctx.index!=null?"Metin güncellendi":"Metin eklendi"); return;
+  }
+
+  const r=DB.get(ctx.id); if(!r) return;
+  const arr=[...filesOf(r,ctx.side)];
+  entry.name=uniqName(arr.map(x=>x.name),baslik,ctx.index!=null?ctx.index:-1);
+  const other=(ctx.side==="santiye"?filesOf(r,"ofis"):filesOf(r,"santiye")).reduce((s,x)=>s+(x.size||0),0);
+  const bu=arr.reduce((s,x,j)=>s+(j===ctx.index?0:(x.size||0)),0);
+  if(other+bu+entry.size>MAX_TOTAL){ toast("Toplam alan sınırı aşıldı (en fazla 550 KB)","err"); return; }
+  if(ctx.index!=null) arr[ctx.index]=entry; else arr.push(entry);
+  const patch = ctx.side==="santiye"
+    ? {santiyeExcels:arr, santiyeExcel:null}
+    : {ofisExcels:arr, ofisExcel:null, ofisAt:r.ofisAt||Date.now()};
+  try{
+    await DB.update(ctx.id,patch);
+    closeOv("ovTxt"); reopen(ctx.id);
+    toast(ctx.index!=null?"Metin güncellendi":"Metin kaydı eklendi");
+  }catch(e){ toast("Kaydedilemedi: "+(e.code||e.message),"err"); }
 }
 function xlsTable(x,big){
   let rows=[];try{rows=JSON.parse(x.rowsJson||"[]");}catch(e){rows=[];}
@@ -828,7 +1155,10 @@ function openPrev(id,side,i){
   const x=filesOf(DB.get(id),side)[i||0];if(!x)return;
   const k=kindOf(x), color=side==="santiye"?"var(--santiye)":"var(--ofis)";
   let sub="", body="";
-  if(k==="excel"){
+  if(k==="text"){
+    sub="Elle girilen metin · "+fmtSize(x.size||byteLen(x.text))+(x.at?" · "+fmtDate(x.at):"");
+    body=`<div class="textentry mono">${esc(x.text||"")}</div>`;
+  }else if(k==="excel"){
     sub=`${x.totalRows} satır · ${esc(x.sheetName)} · ${fmtSize(x.size)}${x.totalRows-1>59?" · ilk 60 satır önizleme (tamamı İndir'de)":""}`;
     body=xlsTable(x,true);
   }else if(k==="image"){
@@ -846,6 +1176,8 @@ function openPrev(id,side,i){
     <div class="modal-head">
       <div style="flex:1;min-width:0"><h2 style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.name)}</h2>
         <div class="sub">${sub}</div></div>
+      ${k==="text"?`<button class="btn btn-sm" onclick="closeOv('ovXls');openTextComposer({id:'${id}',side:'${side}',index:${i||0}})">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M2 12l1-3 7-7 2 2-7 7-3 1z"/></svg>Düzenle</button>`:""}
       <button class="btn btn-sm" style="color:${color}" onclick="dl('${id}','${side}',${i||0})">
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v8m0 0L4 7m3 3l3-3M2 12h10"/></svg>İndir</button>
       <button class="iconbtn" onclick="closeOv('ovXls')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
@@ -1005,6 +1337,129 @@ async function addNote(id){
 async function delRequest(id){if(!confirm("Bu ilave talebi kalıcı olarak silinsin mi?"))return;
   try{await DB.remove(id);closeOv("ovDetail");toast("Talep silindi");}catch(e){toast("Silinemedi: "+(e.code||e.message),"err");}}
 
+/* ================= ŞANTİYE YÖNETİMİ (madde 1 · toplu düzeltme) =================
+   Geçmişte farklı yazılmış şantiyeleri tek isim altında birleştirir.
+   Firestore batch ile tüm ilgili talepler tek seferde güncellenir.            */
+function openSites(){
+  const ov=el("div","overlay");ov.id="ovSites";
+  ov.innerHTML=`<div class="modal wide">
+    <div class="modal-head"><h2>Şantiye Yönetimi</h2><span class="sub">Aynı şantiyeyi tek isimde topla</span>
+      <div class="spacer" style="flex:1"></div>
+      <button class="iconbtn" onclick="closeOv('ovSites')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l8 8M11 3l-8 8"/></svg></button></div>
+    <div class="modal-body" id="sitesBody"></div>
+    <div class="modal-foot">
+      <span id="selInfo" style="margin-right:auto;font-size:12.5px;color:var(--ink-soft)"></span>
+      <button class="btn btn-ghost" onclick="closeOv('ovSites')">Kapat</button>
+      <button class="btn btn-primary" onclick="mergeSelected()">Seçilenleri Birleştir</button></div></div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener("mousedown",e=>{if(e.target===ov)closeOv("ovSites");});
+  renderSites();
+}
+function renderSites(){
+  const box=$("#sitesBody"); if(!box) return;
+  const list=siteIndex();
+  if(!list.length){ box.innerHTML="<div style='color:var(--ink-faint);font-size:13px'>Henüz kayıtlı şantiye yok.</div>"; return; }
+  const pairs=[];
+  for(let i=0;i<list.length;i++)
+    for(let j=i+1;j<list.length;j++){
+      const v=siteSim(list[i].key,list[j].key);
+      if(v>=SIM_ESIK) pairs.push({a:list[i],b:list[j],v});
+    }
+  pairs.sort((x,y)=>y.v-x.v);
+  const sim = pairs.length
+    ? `<div class="sect-title">Olası aynı şantiyeler — kontrol edin</div>`+
+      pairs.slice(0,6).map(p=>`<div class="simcard">
+        <div class="pair"><b>${esc(p.a.ad)}</b> <span style="opacity:.6">(${p.a.count})</span> ↔ <b>${esc(p.b.ad)}</b> <span style="opacity:.6">(${p.b.count})</span></div>
+        <span class="pct">%${Math.round(p.v*100)} benzer</span>
+        <button class="btn btn-sm" onclick="openMerge('${p.a.key}|${p.b.key}')">Birleştir</button></div>`).join("")+
+      `<div style="height:16px"></div>`
+    : `<div class="simcard" style="border-color:#bfe0cf;background:var(--ok-bg);color:#1e6046"><div class="pair" style="color:#1e6046">✓ Birbirine benzeyen farklı yazım bulunamadı.</div></div><div style="height:16px"></div>`;
+
+  box.innerHTML = sim + `<div class="sect-title">Tüm şantiyeler (${list.length})</div><div class="sitelist">`+
+    list.map(s=>{
+      const vr=[...s.variants.keys()];
+      return `<label class="siteitem">
+        <input type="checkbox" value="${esc(s.key)}" onchange="this.closest('.siteitem').classList.toggle('sel',this.checked);updSel()">
+        <div class="nm"><b>${esc(s.ad)}</b>${vr.length>1?`<div class="vr">Farklı yazımlar birleştirildi: ${vr.map(esc).join(" · ")}</div>`:""}</div>
+        <span class="cn">${s.count} talep</span>
+        <button class="btn btn-sm" onclick="event.preventDefault();openRename('${s.key}')">Adı Düzelt</button></label>`;
+    }).join("")+`</div>`;
+  updSel();
+}
+function selectedSiteKeys(){ return [...document.querySelectorAll("#sitesBody input[type=checkbox]:checked")].map(c=>c.value); }
+function updSel(){ const n=selectedSiteKeys().length,i=$("#selInfo"); if(i) i.textContent = n? n+" şantiye seçildi" : "Birleştirmek için en az iki şantiye işaretleyin"; }
+function mergeSelected(){ const k=selectedSiteKeys(); if(k.length<2){ toast("En az iki şantiye seçin","err"); return; } openMerge(k.join("|")); }
+
+function openMerge(keysStr){
+  const keys=keysStr.split("|"), groups=keys.map(siteByKey).filter(Boolean);
+  if(groups.length<2){ toast("En az iki şantiye seçin","err"); return; }
+  const total=groups.reduce((s,g)=>s+g.count,0);
+  const def=groups.slice().sort((a,b)=>b.count-a.count)[0];
+  const ov=el("div","overlay top");ov.id="ovMerge";
+  ov.innerHTML=`<div class="modal">
+    <div class="modal-head"><h2>Şantiyeleri Birleştir</h2><span class="sub">${total} talep etkilenecek</span>
+      <button class="iconbtn" onclick="closeOv('ovMerge')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l8 8M11 3l-8 8"/></svg></button></div>
+    <div class="modal-body">
+      <p style="margin:0 0 13px;font-size:13px;color:var(--ink-soft)">Aşağıdaki kayıtlar tek şantiye altında toplanacak. <b>Kalacak adı</b> seçin:</p>
+      ${groups.map(g=>`<label class="siteitem" style="margin-bottom:8px">
+        <input type="radio" name="mname" value="${esc(g.ad)}"${g.key===def.key?" checked":""}>
+        <div class="nm"><b>${esc(g.ad)}</b></div><span class="cn">${g.count} talep</span></label>`).join("")}
+      <div class="field" style="margin:14px 0 12px"><label>veya yeni bir ad yazın</label>
+        <input type="text" id="mCustom" autocomplete="off" placeholder="Örn: INVEST MASLAK KORU"></div>
+      <div style="background:var(--warn-bg);border:1px solid #e6d59a;color:#7a5a06;border-radius:8px;padding:10px 12px;font-size:12.5px">
+        Bu işlem ${total} talebin şantiye adını değiştirir. Yanlış olursa aynı ekrandan tekrar düzeltebilirsiniz.</div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeOv('ovMerge')">Vazgeç</button>
+      <button class="btn btn-primary" onclick="confirmMerge('${keysStr}')">Birleştir</button></div></div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener("mousedown",e=>{if(e.target===ov)closeOv("ovMerge");});
+}
+async function confirmMerge(keysStr){
+  const custom=cleanName($("#mCustom").value);
+  const radio=document.querySelector("input[name=mname]:checked");
+  const ad=custom||(radio?radio.value:"");
+  if(!ad){ toast("Kalacak adı seçin","err"); return; }
+  if(await doMerge(keysStr.split("|"),ad)) closeOv("ovMerge");
+}
+function openRename(key){
+  const g=siteByKey(key); if(!g) return;
+  const ov=el("div","overlay top");ov.id="ovMerge";
+  ov.innerHTML=`<div class="modal">
+    <div class="modal-head"><h2>Şantiye Adını Düzelt</h2><span class="sub">${g.count} talep</span>
+      <button class="iconbtn" onclick="closeOv('ovMerge')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l8 8M11 3l-8 8"/></svg></button></div>
+    <div class="modal-body">
+      <div class="field"><label>Şantiye adı</label><input type="text" id="rnName" autocomplete="off" value="${esc(g.ad)}"></div>
+      <div style="font-size:12.5px;color:var(--ink-soft)">Bu ada sahip <b>${g.count}</b> talebin tamamı güncellenir. Mevcut başka bir şantiyenin adını yazarsanız ikisi birleşir.</div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeOv('ovMerge')">Vazgeç</button>
+      <button class="btn btn-primary" onclick="confirmRename('${key}')">Kaydet</button></div></div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener("mousedown",e=>{if(e.target===ov)closeOv("ovMerge");});
+  setTimeout(()=>{const i=$("#rnName");if(i)i.focus();},40);
+}
+async function confirmRename(key){
+  const ad=cleanName($("#rnName").value);
+  if(!ad){ toast("Ad boş olamaz","err"); return; }
+  if(await doMerge([key],ad)) closeOv("ovMerge");
+}
+async function doMerge(keys,name){
+  const ad=cleanName(name), key=normKey(ad);
+  if(!key){ toast("Geçersiz ad","err"); return false; }
+  const recs=DB.list().filter(r=>keys.includes(keyOf(r)));
+  if(!recs.length){ toast("Bu adla kayıt bulunamadı","err"); return false; }
+  try{
+    for(let i=0;i<recs.length;i+=400){
+      const batch=db.batch();
+      recs.slice(i,i+400).forEach(r=>batch.update(db.collection(COL).doc(r.id),{santiye:ad,santiyeKey:key}));
+      await batch.commit();
+    }
+    recs.forEach(r=>{ r.santiye=ad; r.santiyeKey=key; });
+    render(); renderSites();
+    toast(recs.length+" talep \""+ad+"\" altında toplandı");
+    return true;
+  }catch(e){ toast("İşlem başarısız: "+(e.code||e.message),"err"); return false; }
+}
+
 function wireDrop(zone,input,onFiles){
   zone.onclick=()=>input.click();
   input.onchange=e=>{ if(e.target.files.length)onFiles([...e.target.files]); input.value=""; };
@@ -1013,11 +1468,15 @@ function wireDrop(zone,input,onFiles){
   zone.addEventListener("drop",e=>{ if(e.dataTransfer.files.length)onFiles([...e.dataTransfer.files]); });
 }
 
-function closeOv(id){const o=$("#"+id);if(o)o.remove();}
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){if($("#ovXls"))closeOv("ovXls");else{closeOv("ovNew");closeOv("ovDetail");}}});
+function closeOv(id){const o=$("#"+id);if(o)o.remove(); if(id==="ovDetail")EDIT1=null;}
+document.addEventListener("keydown",e=>{
+  if(e.key!=="Escape") return;
+  for(const id of ["ovTxt","ovMerge","ovXls","ovSites","ovNew","ovDetail"]){ if($("#"+id)){ closeOv(id); return; } }
+});
 $("#viewtabs").addEventListener("click",e=>{const b=e.target.closest("button");if(b)setView(b.dataset.view);});
 ["searchInput","filterSantiye","filterDurum"].forEach(id=>$("#"+id).addEventListener("input",render));
 $("#newBtn").addEventListener("click",openNew);
+$("#sitesBtn").addEventListener("click",openSites);
 
 DB.init(render);
 render();
