@@ -53,7 +53,7 @@ input,textarea,select{font-family:inherit;font-size:14px}
 .flowline .d.s{background:var(--santiye)}.flowline .d.o{background:var(--ofis)}.flowline .d.i{background:var(--imalat)}.flowline .d.t{background:var(--ok)}
 .flowline .arr{color:var(--ink-faint)}
 
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
 .kpi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:15px 18px;position:relative;overflow:hidden}
 .kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--line)}
 .kpi.k-total::before{background:var(--ink)}
@@ -87,9 +87,9 @@ input,textarea,select{font-family:inherit;font-size:14px}
 .viewtabs button.done-tab.active{border-bottom-color:var(--ok);color:var(--ok)}
 .viewtabs button.done-tab.active .cnt{background:var(--ok)}
 
-.list-head{display:grid;grid-template-columns:58px 1.35fr 96px 1fr 218px 148px;gap:14px;padding:0 18px 8px;font-family:var(--mono);font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-faint)}
+.list-head{display:grid;grid-template-columns:58px 1.35fr 96px 1fr 118px 148px;gap:14px;padding:0 18px 8px;font-family:var(--mono);font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-faint)}
 .rows{display:flex;flex-direction:column;gap:8px}
-.row{display:grid;grid-template-columns:58px 1.35fr 96px 1fr 218px 148px;gap:14px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:13px 18px;cursor:pointer;transition:.12s;position:relative}
+.row{display:grid;grid-template-columns:58px 1.35fr 96px 1fr 118px 148px;gap:14px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:13px 18px;cursor:pointer;transition:.12s;position:relative}
 .row:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
 .row.nx-ofis{border-left:4px solid var(--ofis)}
 .row.nx-imalat{border-left:4px solid var(--imalat)}
@@ -233,6 +233,12 @@ table.xls thead th{position:sticky;top:0;background:var(--canvas);z-index:1;font
 table.xls .rownum{background:#FAFBFC;color:var(--ink-faint);text-align:right;position:sticky;left:0}
 
 .stage-empty{color:var(--ink-faint);font-size:13px;padding:6px 0}
+/* Detay kartındaki sürükle-bırak alanları */
+.dropwrap{border:1.5px dashed transparent;border-radius:11px;padding:3px;transition:.15s}
+.dropwrap.drag{border-color:var(--ofis);background:var(--ofis-bg);box-shadow:0 0 0 3px #2C6E8F1f}
+.dz-hint{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-faint);margin-top:9px}
+.dropwrap.drag .dz-hint{color:var(--ofis)}
+.done-note{background:var(--ok-bg);color:#1e6046;border-radius:8px;padding:9px 12px;font-size:12.5px;margin-bottom:12px;line-height:1.5}
 .stage-act{border:1.5px dashed var(--ofis);border-radius:10px;padding:20px;text-align:center;background:var(--ofis-bg);color:var(--ofis)}
 .stage-act.imalat{border-color:var(--imalat);background:var(--imalat-bg);color:var(--imalat)}
 .stage-act.santiye{border-color:var(--santiye);background:var(--santiye-bg);color:var(--santiye)}
@@ -323,9 +329,8 @@ table.xls .rownum{background:#FAFBFC;color:var(--ink-faint);text-align:right;pos
     <div><h1>İlave Talepleri</h1>
       <div class="flowline">
         <span class="st"><span class="d s"></span>Şantiye talebi</span><span class="arr">→</span>
-        <span class="st"><span class="d o"></span>Ofis imalatı</span><span class="arr">→</span>
-        <span class="st"><span class="d i"></span>İmalat teslim tarihi</span><span class="arr">→</span>
-        <span class="st"><span class="d t"></span>Şantiye tamamlandı</span>
+        <span class="st"><span class="d o"></span>Ofis imalat dosyası</span><span class="arr">→</span>
+        <span class="st"><span class="d t"></span>Tamamlandı</span>
       </div>
     </div>
   </div>
@@ -333,7 +338,6 @@ table.xls .rownum{background:#FAFBFC;color:var(--ink-faint);text-align:right;pos
   <div class="kpis">
     <div class="kpi k-total"><div class="n" id="kTotal">0</div><div class="l">Toplam ilave talebi</div></div>
     <div class="kpi k-wo"><div class="n" id="kWo">0</div><div class="l">Ofis bekleyen</div></div>
-    <div class="kpi k-wi"><div class="n" id="kWi">0</div><div class="l">İmalat bekleyen</div></div>
     <div class="kpi k-ok"><div class="n" id="kOk">0</div><div class="l">Tamamlanan</div></div>
   </div>
 
@@ -343,12 +347,6 @@ table.xls .rownum{background:#FAFBFC;color:var(--ink-faint);text-align:right;pos
       <input id="searchInput" placeholder="Şantiye, talep eden, neden veya no ara…">
     </div>
     <select id="filterSantiye"><option value="">Tüm şantiyeler</option></select>
-    <select id="filterDurum">
-      <option value="">Tüm durumlar</option>
-      <option value="wait_ofis">Ofis bekleniyor</option>
-      <option value="wait_imalat">İmalat bekleniyor</option>
-      <option value="planned">Teslim planlandı</option>
-    </select>
     <button class="btn" id="sitesBtn" title="Aynı şantiyenin farklı yazımlarını tek isimde birleştir">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M2 13V6l6-4 6 4v7"/><path d="M6 13V9h4v4"/></svg>Şantiyeler
     </button>
@@ -365,9 +363,8 @@ table.xls .rownum{background:#FAFBFC;color:var(--ink-faint);text-align:right;pos
   <div class="legend">
     <span style="font-weight:600;color:var(--ink-faint)">SÜREÇ:</span>
     <span class="lg"><b class="n1">1</b>Şantiye talebi</span><span class="sep">›</span>
-    <span class="lg"><b class="n2">2</b>Ofis imalatı</span><span class="sep">›</span>
-    <span class="lg"><b class="n3">3</b>İmalat teslim tarihi</span><span class="sep">›</span>
-    <span class="lg"><b class="n4">4</b>Şantiye tamamlandı</span>
+    <span class="lg"><b class="n2">2</b>Ofis imalat dosyası</span><span class="sep">›</span>
+    <span class="lg"><b class="n4">✓</b>Tamamlandı</span>
   </div>
 
   <div class="list-head"><div>Talep</div><div>Şantiye / İsteyen</div><div>Tarih</div><div>İlave Nedeni</div><div>Süreç</div><div>Durum</div></div>
@@ -380,7 +377,7 @@ table.xls .rownum{background:#FAFBFC;color:var(--ink-faint);text-align:right;pos
 <script>
 /* ============================================================
    İLAVE KONTROL SİSTEMİ  —  tek akış, herkes kendi işini karttan yapar
-   Süreç: 1) Şantiye talep → 2) Ofis imalat → 3) İmalat teslim tarihi → 4) Şantiye tamamlandı
+   Süreç: 1) Şantiye talep → 2) Ofis imalat dosyası (eklenince talep TAMAMLANIR)
    ============================================================ */
 
 /* -------- DEPOLAMA (Firebase geçişi SADECE burada) --------
@@ -589,10 +586,15 @@ function wireSiteInput(inputId,hintId){
   hint();
 }
 
+/* ---------- TAMAMLANMA KURALI (yeni) ----------
+   Ofis imalat içeriği (dosya veya metin) eklendiği anda talep TAMAMLANIR
+   ve "Tamamlanan İlaveler" sekmesine geçer. Ayrı teslim tarihi / onay adımı yok.
+   Eski kayıtlarda tamamlandiAt varsa o da tamamlanmış sayılır.            */
+function isDone(r){ return !!(r && (r.tamamlandiAt || filesOf(r,"ofis").length)); }
+function doneAt(r){ return r.tamamlandiAt || r.ofisAt || null; }
+
 function statusInfo(r){
-  if(r.tamamlandiAt) return {key:"tamamlandi",cls:"b-ok",txt:"Tamamlandı"};
-  if(r.teslimTarihi) return {key:"planned",cls:"b-plan",txt:"Teslim: "+fmtShort(r.teslimTarihi)};
-  if(filesOf(r,"ofis").length) return {key:"wait_imalat",cls:"b-wi",txt:"İmalat Bekleniyor"};
+  if(isDone(r)) return {key:"tamamlandi",cls:"b-ok",txt:"Tamamlandı"};
   return {key:"wait_ofis",cls:"b-wo",txt:"Ofis Bekleniyor"};
 }
 
@@ -724,17 +726,13 @@ function dl(id,side,i){const x=filesOf(DB.get(id),side)[i||0];if(x&&(x.b64||isTe
 function setView(v){
   VIEW=v;
   [...$("#viewtabs").children].forEach(b=>b.classList.toggle("active",b.dataset.view===v));
-  $("#filterDurum").disabled=(v==="tamamlanan");
-  $("#filterDurum").style.opacity=v==="tamamlanan"?.5:1;
   render();
 }
 
 function render(){
   const all=DB.list();
-  const isDone=r=>!!r.tamamlandiAt;
   $("#kTotal").textContent=all.length;
-  $("#kWo").textContent=all.filter(r=>statusInfo(r).key==="wait_ofis").length;
-  $("#kWi").textContent=all.filter(r=>statusInfo(r).key==="wait_imalat").length;
+  $("#kWo").textContent=all.filter(r=>!isDone(r)).length;
   $("#kOk").textContent=all.filter(isDone).length;
   $("#cntAktif").textContent=all.filter(r=>!isDone(r)).length;
   $("#cntDone").textContent=all.filter(isDone).length;
@@ -748,13 +746,12 @@ function render(){
   sel.value = sites.some(s=>s.key===cur) ? cur : "";
 
   const qRaw=$("#searchInput").value.trim(), q=normKey(qRaw);
-  const fS=$("#filterSantiye").value,fD=$("#filterDurum").value;
+  const fS=$("#filterSantiye").value;
   let list=all.filter(r=>{
     const done=isDone(r);
     if(VIEW==="aktif" && done) return false;
     if(VIEW==="tamamlanan" && !done) return false;
     if(fS && keyOf(r)!==fS) return false;
-    if(VIEW==="aktif" && fD && statusInfo(r).key!==fD) return false;
     if(qRaw){
       const ekler=[...filesOf(r,"santiye"),...filesOf(r,"ofis")]
         .map(x=>(x.name||"")+" "+(isText(x)?(x.text||""):"")).join(" ");
@@ -773,17 +770,15 @@ function render(){
   }
   if(list.length===0){
     const m=VIEW==="tamamlanan"?"Henüz tamamlanan ilave yok.":"Eşleşen aktif kayıt yok.";
-    empty.innerHTML=`<div class="empty"><h3>${m}</h3><p>${VIEW==="tamamlanan"?"Şantiye bir ilaveyi tamamlandı yaptığında burada listelenir.":"Arama veya filtreleri değiştirin."}</p></div>`;return;
+    empty.innerHTML=`<div class="empty"><h3>${m}</h3><p>${VIEW==="tamamlanan"?"Ofis bir talebe imalat dosyasını eklediğinde kayıt buraya taşınır.":"Arama veya filtreleri değiştirin."}</p></div>`;return;
   }
   empty.innerHTML="";
   list.forEach(r=>{
     const st=statusInfo(r);
-    const hasO=filesOf(r,"ofis").length>0,hasI=!!r.teslimTarihi,hasT=!!r.tamamlandiAt;
+    const hasO=isDone(r);
     let nxCls="",nxTag="";
-    if(st.key==="wait_ofis"){nxCls="nx-ofis";nxTag="Sıradaki: Ofis imalat dosyası";}
-    else if(st.key==="wait_imalat"){nxCls="nx-imalat";nxTag="Sıradaki: İmalat teslim tarihi";}
-    else if(st.key==="planned"){nxCls="nx-santiye";nxTag="Sıradaki: Şantiye tamamlandı onayı";}
-    const row=el("div","row"+(hasT?" is-done":"")+(nxCls?" "+nxCls:""));
+    if(!hasO){nxCls="nx-ofis";nxTag="Sıradaki: Ofis imalat dosyası";}
+    const row=el("div","row"+(hasO?" is-done":"")+(nxCls?" "+nxCls:""));
     row.onclick=()=>openDetail(r.id);
     row.innerHTML=`
       <div class="idcell">${esc(r.id)}</div>
@@ -793,12 +788,8 @@ function render(){
       <div class="neden">${esc(r.neden)||"—"}</div>
       <div class="stepper">
         <span class="snode s1 done" title="1 · Şantiye talebi">1</span>
-        <span class="sbar ${hasO?'d-o':''}"></span>
-        <span class="snode s2 ${hasO?'done':''}" title="2 · Ofis imalatı">2</span>
-        <span class="sbar ${hasI?'d-i':''}"></span>
-        <span class="snode s3 ${hasI?'done':''}" title="3 · İmalat teslim tarihi">3</span>
-        <span class="sbar ${hasT?'d-t':''}"></span>
-        <span class="snode s4 ${hasT?'done':''}" title="4 · Şantiye tamamlandı">4</span>
+        <span class="sbar ${hasO?'d-t':''}"></span>
+        <span class="snode s4 ${hasO?'done':''}" title="2 · Ofis imalat dosyası — tamamlandı">${hasO?'✓':'2'}</span>
       </div>
       <div><span class="badge ${st.cls}"><span class="bd"></span>${st.txt}</span></div>`;
     rows.appendChild(row);
@@ -845,7 +836,7 @@ function openNew(){
   document.body.appendChild(ov);
   ov.addEventListener("mousedown",e=>{if(e.target===ov)closeOv("ovNew");});
   wireSiteInput("fSantiye","fSiteHint");
-  wireDrop($("#dropZone"),$("#fFile"),async files=>{
+  const takeNewFiles = async files=>{
     for(const f of files){
       try{
         const meta=await prepareFile(f);
@@ -856,7 +847,10 @@ function openNew(){
       }catch(e){ toast(f.name+": "+(e.message||"okunamadı"),"err"); }
     }
     renderNewFiles();
-  });
+  };
+  wireDrop($("#dropZone"),$("#fFile"),takeNewFiles);
+  /* Hedefi kaçırıp form gövdesine bırakılan dosyalar da kabul edilsin */
+  makeDropZone(ov.querySelector(".modal-body"),takeNewFiles);
 }
 function renderNewFiles(){
   const box=$("#filePreview"); if(!box) return;
@@ -883,7 +877,7 @@ async function saveNew(){
   }catch(err){toast("Kaydedilemedi: "+(err.code||err.message),"err");}
 }
 
-/* -------- Detay: 4 aşama, her aksiyon karttan -------- */
+/* -------- Detay: 2 aşama, her aksiyon karttan -------- */
 function openDetail(id){
   const r=DB.get(id);if(!r)return;
   const st=statusInfo(r);
@@ -904,21 +898,11 @@ function openDetail(id){
       </div>
       <div class="flow-link"></div>
 
-      <div class="stage o">
-        <div class="stage-head"><span class="stage-num">2</span><b>Ofis · İmalat Dosyaları</b><span class="st-status">${r.ofisAt?"Eklendi "+fmtDate(r.ofisAt)+(nO?" · "+nO+" dosya":""):"Bekliyor"}</span></div>
+      <div class="stage ${isDone(r)?"t":"o"}">
+        <div class="stage-head"><span class="stage-num">2</span><b>Ofis · İmalat Dosyaları</b>
+          <span class="st-status">${isDone(r)?"Tamamlandı · "+fmtDate(doneAt(r))+(nO?" · "+nO+" kayıt":""):"Bekliyor"}</span></div>
+        ${isDone(r)?`<div class="done-note">✓ Ofis imalat dosyası eklendi — talep <b>Tamamlanan İlaveler</b> bölümünde. Tüm kayıtlar kaldırılırsa talep aktife geri döner.</div>`:""}
         ${sideFilesBlock(r,"ofis")}
-      </div>
-      <div class="flow-link"></div>
-
-      <div class="stage i">
-        <div class="stage-head"><span class="stage-num">3</span><b>İmalat · Teslim</b><span class="st-status">${r.teslimTarihi?"Planlandı":"Bekliyor"}</span></div>
-        ${imalatStage(r)}
-      </div>
-      <div class="flow-link"></div>
-
-      <div class="stage t">
-        <div class="stage-head"><span class="stage-num">4</span><b>Şantiye · Tamamlandı</b><span class="st-status">${r.tamamlandiAt?"Tamamlandı "+fmtDate(r.tamamlandiAt):"Bekliyor"}</span></div>
-        ${tamamStage(r)}
       </div>
     </div>
 
@@ -933,6 +917,7 @@ function openDetail(id){
    </div>`;
   document.body.appendChild(ov);
   ov.addEventListener("mousedown",e=>{if(e.target===ov)closeOv("ovDetail");});
+  wireDetailDrops(ov);
   renderNotes(r);
   if(EDIT1===r.id){ wireSiteInput("eSantiye","eSiteHint"); const f=$("#eEden"); if(f) f.focus(); }
 }
@@ -991,41 +976,6 @@ function stage1Block(r){
     ${sideFilesBlock(r,"santiye")}`;
 }
 
-function imalatStage(r){
-  if(!filesOf(r,"ofis").length) return '<div class="stage-empty">Önce ofis imalat dosyasını eklemeli.</div>';
-  if(r.teslimTarihi){
-    return `<div class="done-shown">
-      <div><div class="k">Teslim tarihi</div><div class="big-date" style="color:var(--imalat)">${fmtDate(r.teslimTarihi)}</div></div>
-      ${r.imalatNot?`<div style="flex:1;color:var(--ink-soft);font-size:13px">${esc(r.imalatNot)}</div>`:''}
-      ${!r.tamamlandiAt?`<button class="btn btn-ghost btn-sm" onclick="clearTeslim('${r.id}')">Tarihi değiştir</button>`:''}
-    </div>`;
-  }
-  const today=new Date().toISOString().slice(0,10);
-  return `<div class="stage-act imalat"><p>Bu imalat için teslim tarihini belirleyin.</p>
-    <div class="date-set">
-      <div class="field"><label style="text-align:left">Teslim tarihi</label><input type="date" id="teslimDate" value="${today}" style="width:auto"></div>
-      <div class="field" style="flex:1;min-width:160px"><label style="text-align:left">Not (opsiyonel)</label><input type="text" id="teslimNot" placeholder="Örn: Kaplama sonrası"></div>
-      <button class="btn btn-imalat btn-sm" onclick="setTeslim('${r.id}')">Teslim Tarihini Kaydet</button>
-    </div></div>`;
-}
-
-function tamamStage(r){
-  if(r.tamamlandiAt){
-    return `<div class="done-shown">
-      <div><div class="k">Tamamlanma tarihi</div><div class="big-date" style="color:var(--ok)">${fmtDate(r.tamamlandiAt)}</div></div>
-      ${r.tamamNot?`<div style="flex:1;color:var(--ink-soft);font-size:13px">${esc(r.tamamNot)}</div>`:''}
-      <span class="badge b-ok"><span class="bd"></span>Şantiye tamamladı</span>
-      <button class="btn btn-ghost btn-sm" onclick="clearTamam('${r.id}')">Geri al</button>
-    </div>`;
-  }
-  if(!r.teslimTarihi) return '<div class="stage-empty">İmalat teslim tarihi verince şantiye tamamlayabilir.</div>';
-  return `<div class="stage-act santiye"><p>İlave şantiyeye ulaştıysa tamamlandı olarak işaretleyin. Kayıt "Tamamlanan İlaveler" bölümüne taşınır.</p>
-    <div class="date-set">
-      <div class="field" style="flex:1;min-width:180px"><label style="text-align:left">Not (opsiyonel)</label><input type="text" id="tamamNot" placeholder="Örn: yerine montajlandı"></div>
-      <button class="btn btn-santiye btn-sm" onclick="setTamam('${r.id}')">Tamamlandı Yap</button>
-    </div></div>`;
-}
-
 /* Bu talebin dosya alanı kullanımı — kalan yeri gösterir */
 function quotaStrip(r){
   const used=sumBytes(r), pct=Math.min(100,Math.round(used/MAX_TOTAL*100));
@@ -1050,12 +1000,18 @@ function sideFilesBlock(r,side){
     <button class="btn btn-sm" onclick="openTextComposer({id:'${id}',side:'${side}'})">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M2 12l1-3 7-7 2 2-7 7-3 1z"/></svg>Metin Ekle</button>${inp}`;
 
+  const dzOpen = `<div class="dropwrap" data-drop-id="${id}" data-drop-side="${side}">`;
+  const dzHint = `<div class="dz-hint">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M6.5 1.5v7m0-7l-2.5 2.5m2.5-2.5l2.5 2.5M1.5 9v1.5a1 1 0 001 1h8a1 1 0 001-1V9"/></svg>
+      Dosyaları doğrudan bu alana <b>sürükleyip bırakabilirsiniz</b>.</div></div>`;
+
   if(!files.length){
     const msg = side==="ofis"
-      ? `Bu talep (<b>${esc(id)} · ${esc(r.santiye)}</b>) için imalat bilgisini <b>dosya olarak yükleyin</b> (Excel, foto, Word, PDF) <b>veya doğrudan metin olarak yazın</b>.`
+      ? `Bu talep (<b>${esc(id)} · ${esc(r.santiye)}</b>) için imalat bilgisini <b>dosya olarak yükleyin</b> (Excel, foto, Word, PDF) <b>veya doğrudan metin olarak yazın</b>. Dosya eklendiğinde talep otomatik <b>tamamlandı</b> sayılır.`
       : `Bu talebe ait içerik eklenmedi. <b>Dosya yükleyebilir</b> (Excel, foto, Word, PDF) <b>veya ölçü/miktar bilgisini elle metin olarak yazabilirsiniz</b>.`;
-    return `<div class="stage-act${side==="santiye"?" santiye":""}"><p>${msg}</p>
-      <div class="btnrow">${addBtns}</div></div>`;
+    return dzOpen+`<div class="stage-act${side==="santiye"?" santiye":""}"><p>${msg}</p>
+      <div class="btnrow">${addBtns}</div>
+      <div class="dz-hint" style="justify-content:center">Dosyaları buraya <b>sürükleyip bırakın</b></div></div></div>`;
   }
   const list = files.map((x,i)=>{const tg=fileTag(x),txt=isText(x);return `<div class="filecard" style="margin-bottom:8px">
     <div class="filecard-row"><div class="xls" style="background:${tg.bg}">${tg.lbl}</div>
@@ -1069,7 +1025,7 @@ function sideFilesBlock(r,side){
       <button class="iconbtn" title="Bu kaydı kaldır" onclick="removeFile('${id}','${side}',${i})">
         <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l7 7M10 3l-7 7"/></svg></button>
     </div></div>`;}).join("");
-  return list+`<div style="margin-top:4px;display:flex;gap:9px;flex-wrap:wrap">${addBtns}</div>`;
+  return dzOpen+list+`<div style="margin-top:4px;display:flex;gap:9px;flex-wrap:wrap">${addBtns}</div>`+dzHint;
 }
 
 /* ================= METİN OLARAK VERİ GİRİŞİ (madde 3) =================
@@ -1130,9 +1086,7 @@ async function saveTextComposer(){
   const bu=arr.reduce((s,x,j)=>s+(j===ctx.index?0:(x.size||0)),0);
   if(other+bu+entry.size>MAX_TOTAL){ toast("Toplam alan sınırı aşıldı (en fazla 550 KB)","err"); return; }
   if(ctx.index!=null) arr[ctx.index]=entry; else arr.push(entry);
-  const patch = ctx.side==="santiye"
-    ? {santiyeExcels:arr, santiyeExcel:null}
-    : {ofisExcels:arr, ofisExcel:null, ofisAt:r.ofisAt||Date.now()};
+  const patch = sidePatch(r,ctx.side,arr);
   try{
     await DB.update(ctx.id,patch);
     closeOv("ovTxt"); reopen(ctx.id);
@@ -1272,48 +1226,55 @@ function cleanDocText(s,utf16){
   return out.join("\n").slice(0,20000);
 }
 
-/* Çoklu dosya yükleme — hem şantiye hem ofis tarafı için.
+/* Kaydedilecek yamayı üretir.
+   OFİS tarafına içerik girildiği anda talep TAMAMLANIR (tamamlandiAt yazılır);
+   ofis tarafındaki tüm kayıtlar silinirse tamamlanma geri alınır. */
+function sidePatch(r,side,arr){
+  if(side==="santiye") return {santiyeExcels:arr, santiyeExcel:null};
+  return {
+    ofisExcels:arr, ofisExcel:null,
+    ofisAt:       arr.length ? (r.ofisAt||Date.now())       : null,
+    tamamlandiAt: arr.length ? (r.tamamlandiAt||Date.now()) : null
+  };
+}
+
+/* Çoklu dosya ekleme — hem "Dosya Ekle" butonu hem sürükle-bırak buraya düşer.
    Eski tek-dosya kayıtları otomatik listeye taşınır (veri kaybı olmaz). */
+async function addFilesToRecord(id,side,files){
+  files=[...files]; if(!files.length) return;
+  const r=DB.get(id); if(!r) return;
+  const arr=[...filesOf(r,side)];
+  let total=sumBytes(r), added=0;
+  for(const f of files){
+    try{
+      const meta=await prepareFile(f);
+      if(arr.some(x=>x.name===meta.name)){ toast(meta.name+" zaten ekli","err"); continue; }
+      if(total+meta.size>MAX_TOTAL){ toast("Toplam dosya sınırı aşıldı (en fazla 550 KB)","err"); break; }
+      arr.push(meta); total+=meta.size; added++;
+    }catch(err){ toast(f.name+": "+(err.message||"okunamadı"),"err"); }
+  }
+  if(!added) return;
+  const wasDone=isDone(r);
+  try{
+    await DB.update(id,sidePatch(r,side,arr));
+    reopen(id);
+    toast(added+" dosya eklendi"+(side==="ofis"&&!wasDone?" — talep tamamlandı":""));
+  }catch(err){ toast("Kaydedilemedi: "+(err.code||err.message),"err"); }
+}
 function triggerUpload(id,side){
   const inp=$(side==="santiye"?"#upSantiye":"#upOfis"); if(!inp)return; inp.value="";
-  inp.onchange=async e=>{
-    const files=[...e.target.files]; if(!files.length)return;
-    const r=DB.get(id); if(!r)return;
-    const arr=[...filesOf(r,side)];
-    let total=sumBytes(r), added=0;
-    for(const f of files){
-      try{
-        const meta=await prepareFile(f);
-        if(arr.some(x=>x.name===meta.name)){ toast(meta.name+" zaten ekli","err"); continue; }
-        if(total+meta.size>MAX_TOTAL){ toast("Toplam dosya sınırı aşıldı (en fazla 550 KB)","err"); break; }
-        arr.push(meta); total+=meta.size; added++;
-      }catch(err){ toast(f.name+": "+(err.message||"okunamadı"),"err"); }
-    }
-    if(!added)return;
-    const patch = side==="santiye"
-      ? {santiyeExcels:arr, santiyeExcel:null}
-      : {ofisExcels:arr, ofisExcel:null, ofisAt:r.ofisAt||Date.now()};
-    try{ await DB.update(id,patch); reopen(id); toast(added+" dosya eklendi"); }
-    catch(err){ toast("Kaydedilemedi: "+(err.code||err.message),"err"); }
-  };
+  inp.onchange=e=>{ const f=[...e.target.files]; inp.value=""; addFilesToRecord(id,side,f); };
   inp.click();
 }
 /* Tek bir dosyayı kaldır */
 async function removeFile(id,side,i){
-  if(!confirm("Bu dosya kaldırılsın mı?"))return;
+  if(!confirm("Bu kayıt kaldırılsın mı?"))return;
   const r=DB.get(id); if(!r)return;
   const arr=[...filesOf(r,side)]; arr.splice(i,1);
-  const patch = side==="santiye"
-    ? {santiyeExcels:arr, santiyeExcel:null}
-    : {ofisExcels:arr, ofisExcel:null, ofisAt:arr.length?(r.ofisAt||Date.now()):null};
-  try{ await DB.update(id,patch); reopen(id); toast("Dosya kaldırıldı"); }
+  try{ await DB.update(id,sidePatch(r,side,arr)); reopen(id);
+    toast("Kayıt kaldırıldı"+(side==="ofis"&&!arr.length?" — talep aktife döndü":"")); }
   catch(err){ toast("Hata: "+(err.code||err.message),"err"); }
 }
-async function setTeslim(id){const d=$("#teslimDate").value;if(!d){toast("Teslim tarihi seçin","err");return;}
-  try{await DB.update(id,{teslimTarihi:d,imalatNot:$("#teslimNot").value.trim()||null,imalatAt:Date.now()});reopen(id);toast("Teslim tarihi kaydedildi");}catch(e){toast("Hata: "+(e.code||e.message),"err");}}
-async function clearTeslim(id){try{await DB.update(id,{teslimTarihi:null,imalatNot:null});reopen(id);}catch(e){toast("Hata: "+(e.code||e.message),"err");}}
-async function setTamam(id){try{await DB.update(id,{tamamlandiAt:Date.now(),tamamNot:($("#tamamNot")?$("#tamamNot").value.trim():"")||null});reopen(id);toast("İlave tamamlandı — Tamamlanan İlaveler'e taşındı");}catch(e){toast("Hata: "+(e.code||e.message),"err");}}
-async function clearTamam(id){try{await DB.update(id,{tamamlandiAt:null,tamamNot:null});reopen(id);toast("Tamamlanma geri alındı");}catch(e){toast("Hata: "+(e.code||e.message),"err");}}
 function reopen(id){closeOv("ovDetail");render();openDetail(id);}
 
 function renderNotes(r){
@@ -1460,12 +1421,51 @@ async function doMerge(keys,name){
   }catch(e){ toast("İşlem başarısız: "+(e.code||e.message),"err"); return false; }
 }
 
+/* ================= SÜRÜKLE–BIRAK =================
+   Sorun: tarayıcı, sayfanın herhangi bir yerine bırakılan dosyayı VARSAYILAN olarak
+   yeni sekmede açar; hedefi biraz kaçırdığınızda uygulamadan çıkıyordunuz.
+   Çözüm: belge genelinde varsayılan davranışı kapatıyoruz, bırakma alanlarını
+   ayrı ayrı dinliyoruz (yeni talep formu + detay kartındaki şantiye/ofis blokları). */
+["dragenter","dragover","drop"].forEach(ev=>
+  document.addEventListener(ev,e=>{ e.preventDefault(); },false));
+
+function dtHasFiles(e){
+  const dt=e.dataTransfer; if(!dt) return false;
+  if(dt.types && dt.types.length) return [...dt.types].includes("Files");
+  return true;
+}
+function makeDropZone(zone,onFiles){
+  if(!zone || zone._dropWired) return; zone._dropWired=true;
+  let depth=0;
+  const off=()=>{ depth=0; zone.classList.remove("drag"); };
+  zone.addEventListener("dragenter",e=>{
+    if(!dtHasFiles(e)) return;
+    e.preventDefault(); e.stopPropagation(); depth++; zone.classList.add("drag");
+  });
+  zone.addEventListener("dragover",e=>{
+    if(!dtHasFiles(e)) return;
+    e.preventDefault(); e.stopPropagation();
+    if(e.dataTransfer) e.dataTransfer.dropEffect="copy";
+    zone.classList.add("drag");
+  });
+  zone.addEventListener("dragleave",e=>{ depth--; if(depth<=0) off(); });
+  zone.addEventListener("drop",e=>{
+    e.preventDefault(); e.stopPropagation(); off();
+    const f=e.dataTransfer&&e.dataTransfer.files?[...e.dataTransfer.files]:[];
+    if(f.length) onFiles(f);
+    else toast("Bırakılan öğe dosya değil","err");
+  });
+}
+/* Detay kartındaki şantiye/ofis bloklarını bırakma alanı yapar */
+function wireDetailDrops(root){
+  if(!root) return;
+  root.querySelectorAll("[data-drop-side]").forEach(z=>
+    makeDropZone(z,files=>addFilesToRecord(z.dataset.dropId,z.dataset.dropSide,files)));
+}
 function wireDrop(zone,input,onFiles){
   zone.onclick=()=>input.click();
   input.onchange=e=>{ if(e.target.files.length)onFiles([...e.target.files]); input.value=""; };
-  ["dragover","dragenter"].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();zone.classList.add("drag");}));
-  ["dragleave","drop"].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();zone.classList.remove("drag");}));
-  zone.addEventListener("drop",e=>{ if(e.dataTransfer.files.length)onFiles([...e.dataTransfer.files]); });
+  makeDropZone(zone,onFiles);
 }
 
 function closeOv(id){const o=$("#"+id);if(o)o.remove(); if(id==="ovDetail")EDIT1=null;}
@@ -1474,7 +1474,7 @@ document.addEventListener("keydown",e=>{
   for(const id of ["ovTxt","ovMerge","ovXls","ovSites","ovNew","ovDetail"]){ if($("#"+id)){ closeOv(id); return; } }
 });
 $("#viewtabs").addEventListener("click",e=>{const b=e.target.closest("button");if(b)setView(b.dataset.view);});
-["searchInput","filterSantiye","filterDurum"].forEach(id=>$("#"+id).addEventListener("input",render));
+["searchInput","filterSantiye"].forEach(id=>{const n=$("#"+id); if(n) n.addEventListener("input",render);});
 $("#newBtn").addEventListener("click",openNew);
 $("#sitesBtn").addEventListener("click",openSites);
 
